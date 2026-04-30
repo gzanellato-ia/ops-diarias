@@ -266,6 +266,7 @@
       <div class="form-card">
         <div class="section-title">Trépano en fondo</div>
         <div class="r4">
+          <div><label>Marca</label><select id="f-marca"><option value="">—</option><option>SLB</option><option>Baker Hughes</option><option>Ulterra</option><option>Halliburton</option><option>NOV</option><option>Otra</option></select></div>
           <div><label>Modelo</label><input type="text" id="f-modelo" placeholder="HVT513, HT513..."></div>
           <div><label>Serial</label><input type="text" id="f-serial" placeholder="SP5639..."></div>
           <div><label>Diámetro</label>
@@ -556,6 +557,7 @@ async function guardar() {
     ini_turno: document.getElementById('f-ini').value || null,
     fin_turno: null,
     td_plan: document.getElementById('f-td').value || null,
+    trepano_marca: document.getElementById('f-marca').value || null,
     trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
     trepano_serial: document.getElementById('f-serial').value.trim() || null,
     diam: document.getElementById('f-diam').value || null,
@@ -587,6 +589,7 @@ function prefillEdit(o) {
   document.getElementById('f-estado').value = o.estado || 'perforando';
   set('f-sup', o.supervisor);
   set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-fin', o.fin_turno); set('f-td', o.td_plan);
+  document.getElementById('f-marca').value = o.trepano_marca || '';
   set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
   document.getElementById('f-diam').value = o.diam || '';
   set('f-bha', o.bha_num); set('f-motor', o.motor_rss); set('f-boq', o.boquillas); set('f-nota', o.nota);
@@ -597,6 +600,7 @@ function limpiar() {
   document.getElementById('f-op').value = '';
   document.getElementById('f-estado').value = 'perforando';
   document.getElementById('f-diam').value = '';
+  document.getElementById('f-marca').value = '';
   document.getElementById('f-sup').value = currentUser;
 }
 
