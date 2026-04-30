@@ -598,7 +598,7 @@ function prefillEdit(o) {
   document.getElementById('f-op').value = o.operadora || '';
   document.getElementById('f-estado').value = o.estado || 'perforando';
   set('f-sup', o.supervisor);
-  set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-fin', o.fin_turno); set('f-td', o.td_plan);
+  set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-td', o.td_plan); if(o.prof_actual && o.ini_turno){ document.getElementById('f-avance').value = Number(o.prof_actual) - Number(o.ini_turno); }
   document.getElementById('f-marca').value = o.trepano_marca || '';
   set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
   document.getElementById('f-diam').value = o.diam || '';
