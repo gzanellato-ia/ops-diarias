@@ -521,7 +521,12 @@ function renderHist() {
         <span class="hrow-equipo">${o.equipo || '—'}</span>
         <span class="hrow-pozo">${o.pozo || ''}</span>
         <span class="badge ${stateBadge[o.estado] || 'b-tiempo-muerto'}" style="font-size:10px">${stateLabel[o.estado] || o.estado || '—'}</span>
-        ${o.prof_actual ? `<span class="hrow-depth">${Number(o.prof_actual).toLocaleString()} m${metros && metros > 0 ? ' (+' + metros + ')' : ''}</span>` : ''}
+        <span class="hrow-depth">
+  ${o.ini_turno ? `Inicio: ${Number(o.ini_turno).toLocaleString()} m` : ''}
+  ${o.prof_actual ? ` · Actual: ${Number(o.prof_actual).toLocaleString()} m` : ''}
+  ${o.td_plan ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
+  ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
+</span>
         <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>
       </div>
       ${bitStr ? `<div class="hrow-bit">${bitStr}</div>` : ''}
