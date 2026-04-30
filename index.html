@@ -528,6 +528,17 @@ function renderHist() {
   }).join('');
 }
 
+function calcAvance() {
+  const prof = parseFloat(document.getElementById('f-prof').value);
+  const ini = parseFloat(document.getElementById('f-ini').value);
+  const el = document.getElementById('f-avance');
+  if (!isNaN(prof) && !isNaN(ini) && prof > ini) {
+    el.value = Math.round(prof - ini);
+  } else {
+    el.value = '';
+  }
+}
+  
 // ─── FORM ────────────────────────────────────────────────────────────────────
 async function guardar() {
   const msg = document.getElementById('fmsg');
@@ -543,7 +554,7 @@ async function guardar() {
     supervisor: document.getElementById('f-sup').value.trim() || currentUser,
     prof_actual: document.getElementById('f-prof').value || null,
     ini_turno: document.getElementById('f-ini').value || null,
-    fin_turno: document.getElementById('f-fin').value || null,
+    fin_turno: null,
     td_plan: document.getElementById('f-td').value || null,
     trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
     trepano_serial: document.getElementById('f-serial').value.trim() || null,
