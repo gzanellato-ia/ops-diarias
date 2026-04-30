@@ -352,18 +352,13 @@ async function getAllOps() {
 }
 
 async function upsertOp(reg) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/operaciones`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates,return=representation',
-    },
-    body: JSON.stringify(reg),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const existing = await sbFetch('GET', `operaciones?fecha=eq.${reg.fecha}&equipo=eq.${encodeURIComponent(reg.equipo)}`);
+  if (existing && existing.length > 0) {
+    const id = existing[0].id;
+    return sbFetch('PATCH', `operaciones?id=eq.${id}`, reg);
+  } else {
+    return sbFetch('POST', 'operaciones', reg);
+  }
 }
 
 async function deleteOp(id) {
