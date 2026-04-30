@@ -352,7 +352,10 @@ async function getAllOps() {
 }
 
 async function upsertOp(reg) {
-  return sbFetch('POST', 'operaciones?on_conflict=fecha,equipo', reg);
+  return sbFetch('POST', 'operaciones', reg, {
+    'Prefer': 'return=representation,resolution=merge-duplicates',
+    'on-conflict': 'fecha,equipo',
+  });
 }
 
 async function deleteOp(id) {
