@@ -248,6 +248,8 @@
               <option value="tiempo-muerto">Tiempo muerto</option>
               <option value="problema">Problema</option>
               <option value="terminado">Terminado / TD</option>
+              <option value="dtm">DTM</option>
+              <option value="armando-bha">Armando BHA</option>
             </select>
           </div>
           <div><label>Supervisor</label><input type="text" id="f-sup" placeholder="Nombre"></div>
@@ -310,6 +312,8 @@
           <option value="tiempo-muerto">Tiempo muerto</option>
           <option value="problema">Problema</option>
           <option value="terminado">Terminado</option>
+          <option value="dtm">DTM</option>
+          <option value="armando-bha">Armando BHA</option>
         </select>
         <button class="btn btn-sm" style="margin-left:auto" onclick="exportCSV()">Exportar CSV</button>
       </div>
@@ -426,8 +430,8 @@ function fmtDate(s) {
   return `${day} ${d}/${m}/${y}`;
 }
 
-const stateLabel = { perforando:'Perforando', entubando:'Entubando', aislacion:'Aislación', 'tiempo-muerto':'Tiempo muerto', problema:'Problema', terminado:'Terminado' };
-const stateBadge = { perforando:'b-perforando', entubando:'b-entubando', aislacion:'b-aislacion', 'tiempo-muerto':'b-tiempo-muerto', problema:'b-problema', terminado:'b-terminado' };
+const stateLabel = { perforando:'Perforando', entubando:'Entubando', aislacion:'Aislación', 'tiempo-muerto':'Tiempo muerto', problema:'Problema', terminado:'Terminado', dtm:'DTM', 'armando-bha':'Armando BHA' };
+const stateBadge = { perforando:'b-perforando', entubando:'b-entubando', aislacion:'b-aislacion', 'tiempo-muerto':'b-tiempo-muerto', problema:'b-problema', terminado:'b-terminado', dtm:'b-tiempo-muerto', 'armando-bha':'b-aislacion' };
 
 // ─── BOARD ───────────────────────────────────────────────────────────────────
 function changeDay(d) {
