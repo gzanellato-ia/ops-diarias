@@ -566,7 +566,7 @@ async function guardar() {
     supervisor: document.getElementById('f-sup').value.trim() || currentUser,
     prof_actual: document.getElementById('f-prof').value || null,
     ini_turno: document.getElementById('f-ini').value || null,
-    fin_turno: document.getElementById('f-avance').value || null,
+    fin_turno: (document.getElementById('f-prof').value && document.getElementById('f-ini').value) ? String(Number(document.getElementById('f-prof').value) - Number(document.getElementById('f-ini').value)) : null,
     td_plan: document.getElementById('f-td').value || null,
     trepano_marca: document.getElementById('f-marca').value || null,
     trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
