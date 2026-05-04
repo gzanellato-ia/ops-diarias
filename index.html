@@ -244,12 +244,15 @@
             <select id="f-estado">
               <option value="perforando">Perforando</option>
               <option value="entubando">Entubando</option>
-              <option value="aislacion">Aislación</option>
-              <option value="tiempo-muerto">Tiempo muerto</option>
-              <option value="problema">Problema</option>
-              <option value="terminado">Terminado / TD</option>
               <option value="dtm">DTM</option>
+              <option value="monta-equipo">Monta Equipo</option>
+              <option value="tiempo-muerto">Tiempo muerto</option>
               <option value="armando-bha">Armando BHA</option>
+              <option value="bajando-herramienta">Bajando Herramienta</option>
+              <option value="sacando-herramienta">Sacando Herramienta</option>
+              <option value="controla-pozo">Controla Pozo</option>
+              <option value="parado-por-problemas">Parado por Problemas</option>
+              <option value="terminado">Terminado / TD</option>
             </select>
           </div>
           <div><label>Supervisor</label><input type="text" id="f-sup" placeholder="Nombre"></div>
@@ -306,15 +309,19 @@
         <input type="text" id="hf-eq" placeholder="Equipo..." oninput="renderHist()" style="width:130px">
         <input type="text" id="hf-pz" placeholder="Pozo..." oninput="renderHist()" style="width:130px">
         <select id="hf-st" onchange="renderHist()">
+
           <option value="">Todos los estados</option>
           <option value="perforando">Perforando</option>
           <option value="entubando">Entubando</option>
-          <option value="aislacion">Aislación</option>
-          <option value="tiempo-muerto">Tiempo muerto</option>
-          <option value="problema">Problema</option>
-          <option value="terminado">Terminado</option>
           <option value="dtm">DTM</option>
+          <option value="monta-equipo">Monta Equipo</option>
+          <option value="tiempo-muerto">Tiempo muerto</option>
           <option value="armando-bha">Armando BHA</option>
+          <option value="bajando-herramienta">Bajando Herramienta</option>
+          <option value="sacando-herramienta">Sacando Herramienta</option>
+          <option value="controla-pozo">Controla Pozo</option>
+          <option value="parado-por-problemas">Parado por Problemas</option>
+          <option value="terminado">Terminado / TD</option>
         </select>
         <button class="btn btn-sm" style="margin-left:auto" onclick="exportCSV()">Exportar CSV</button>
       </div>
