@@ -202,6 +202,7 @@
       <button class="tab active" onclick="goTab('tablero')">Tablero</button>
       <button class="tab" onclick="goTab('cargar')">+ Cargar novedad</button>
       <button class="tab" onclick="goTab('historial')">Historial</button>
+      <button class="tab" onclick="goTab('admin')">⚙ Equipos</button>
     </div>
 
     <!-- TABLERO -->
@@ -220,6 +221,60 @@
       <div class="board" id="board-cards" style="display:none"></div>
     </div>
 
+    <!-- ADMIN -->
+    <div id="tab-admin" class="panel">
+      <div id="admin-msg" class="msg"></div>
+      <div class="form-card">
+        <div class="section-title">Agregar equipo</div>
+        <div class="r3">
+          <div><label>Nombre del equipo</label><input type="text" id="adm-nombre" placeholder="Ej: HP224, DLS169..."></div>
+          <div><label>Operadora</label>
+            <select id="adm-op">
+              <option value="">—</option>
+              <option>YPF</option><option>Pan American Energy</option>
+              <option>TotalEnergies</option><option>Shell</option>
+              <option>Pampa Energía</option><option>Tecpetrol</option>
+              <option>Vista Energy</option><option>Chevron</option><option>Otra</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-primary" onclick="agregarEquipo()" style="width:100%">Agregar</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="section-title">Equipos registrados</div>
+        <div id="equipos-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div id="tab-admin" class="panel">
+      <div id="admin-msg" class="msg"></div>
+      <div class="form-card">
+        <div class="section-title">Agregar equipo</div>
+        <div class="r3">
+          <div><label>Nombre del equipo</label><input type="text" id="adm-nombre" placeholder="Ej: HP224, DLS169..."></div>
+          <div><label>Operadora</label>
+            <select id="adm-op">
+              <option value="">—</option>
+              <option>YPF</option><option>Pan American Energy</option>
+              <option>TotalEnergies</option><option>Shell</option>
+              <option>Pampa Energía</option><option>Tecpetrol</option>
+              <option>Vista Energy</option><option>Chevron</option><option>Otra</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-primary" onclick="agregarEquipo()" style="width:100%">Agregar</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="section-title">Equipos registrados</div>
+        <div id="equipos-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+      </div>
+    </div>
+
     <!-- CARGAR -->
     <div id="tab-cargar" class="panel">
       <div id="fmsg" class="msg"></div>
@@ -227,7 +282,7 @@
         <div class="section-title">Identificación</div>
         <div class="r3">
           <div><label>Fecha</label><input type="date" id="f-fecha"></div>
-          <div><label>Equipo de perforación</label><input type="text" id="f-equipo" placeholder="Ej: NB F03, HP224, DLS168..."></div>
+          <div><label>Equipo de perforación</label><select id="f-equipo"><option value="">Seleccionar equipo...</option></select></div>
           <div><label>Pozo</label><input type="text" id="f-pozo" placeholder="Ej: LACH-871, LLL1820..."></div>
         </div>
         <div class="r3">
@@ -410,6 +465,7 @@ function showApp() {
   document.getElementById('f-fecha').value = viewDate;
   document.getElementById('f-sup').value = currentUser;
   document.getElementById('nav-date').textContent = fmtDate(viewDate) + ' · hoy';
+  loadEquipos();
   loadData();
 }
 
@@ -604,7 +660,7 @@ async function guardar() {
 function prefillEdit(o) {
   goTab('cargar');
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-  set('f-fecha', o.fecha); set('f-equipo', o.equipo); set('f-pozo', o.pozo);
+  set('f-fecha', o.fecha); document.getElementById('f-equipo').value = o.equipo || ''; set('f-pozo', o.pozo);
   document.getElementById('f-op').value = o.operadora || '';
   document.getElementById('f-estado').value = o.estado || 'perforando';
   set('f-sup', o.supervisor);
@@ -616,7 +672,8 @@ function prefillEdit(o) {
 }
 
 function limpiar() {
-  ['f-equipo','f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
+  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-equipo').value = '';
   document.getElementById('f-op').value = '';
   document.getElementById('f-estado').value = 'perforando';
   document.getElementById('f-diam').value = '';
@@ -634,8 +691,9 @@ async function del(id) {
 
 function exportCSV() {
   if (!ops.length) { alert('Sin datos'); return; }
-  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
-  const csv = [cols.join(','), ...ops.map(o => cols.map(k => `"${(o[k] || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
+  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
+  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
+  const csv = [headers.join(','), ...ops.map(o => cols.map(k => `"${(o[k] || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `operaciones_${today()}.csv`;
@@ -644,12 +702,84 @@ function exportCSV() {
 
 function goTab(t) {
   document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', ['tablero','cargar','historial'][i] === t);
+    el.classList.toggle('active', ['tablero','cargar','historial','admin'][i] === t);
   });
   document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + t).classList.add('active');
   if (t === 'tablero') { renderBoard(); }
   if (t === 'historial') { renderHist(); }
+  if (t === 'admin') { renderEquipos(); }
+}
+
+// ─── EQUIPOS ─────────────────────────────────────────────────────────────────
+let equipos = [];
+
+async function loadEquipos() {
+  try {
+    equipos = await sbFetch('GET', 'equipos?order=nombre.asc') || [];
+  } catch(e) { equipos = []; }
+  fillEquipoSelect();
+}
+
+function fillEquipoSelect() {
+  const sel = document.getElementById('f-equipo');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">Seleccionar equipo...</option>';
+  equipos.filter(e => e.activo).forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.nombre;
+    opt.textContent = e.nombre + (e.operadora ? ' · ' + e.operadora : '');
+    sel.appendChild(opt);
+  });
+  if (val) sel.value = val;
+}
+
+function renderEquipos() {
+  const list = document.getElementById('equipos-list');
+  if (!equipos.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">No hay equipos cargados. Agregá el primero arriba.</div>'; return; }
+  list.innerHTML = equipos.map(e => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:500;min-width:100px">${e.nombre}</span>
+      <span style="font-size:12px;color:var(--text2)">${e.operadora || '—'}</span>
+      <span class="badge ${e.activo ? 'b-perforando' : 'b-terminado'}" style="margin-left:4px">${e.activo ? 'Activo' : 'Inactivo'}</span>
+      <button class="btn btn-sm" style="margin-left:auto" onclick="toggleEquipo('${e.id}', ${e.activo})">${e.activo ? 'Desactivar' : 'Activar'}</button>
+      <button class="btn btn-danger btn-sm" onclick="eliminarEquipo('${e.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function agregarEquipo() {
+  const msg = document.getElementById('admin-msg');
+  const nombre = document.getElementById('adm-nombre').value.trim().toUpperCase();
+  const op = document.getElementById('adm-op').value;
+  if (!nombre) { msg.className = 'msg err'; msg.textContent = 'Ingresá el nombre del equipo.'; return; }
+  try {
+    await sbFetch('POST', 'equipos', { nombre, operadora: op || null, activo: true });
+    await loadEquipos();
+    renderEquipos();
+    document.getElementById('adm-nombre').value = '';
+    document.getElementById('adm-op').value = '';
+    msg.className = 'msg ok'; msg.textContent = `✓ Equipo ${nombre} agregado.`;
+    setTimeout(() => { msg.className = 'msg'; }, 3000);
+  } catch(e) {
+    msg.className = 'msg err'; msg.textContent = 'Error al agregar. ¿Ya existe ese equipo?';
+  }
+}
+
+async function toggleEquipo(id, activo) {
+  try {
+    await sbFetch('PATCH', `equipos?id=eq.${id}`, { activo: !activo });
+    await loadEquipos();
+    renderEquipos();
+  } catch(e) { alert('Error al actualizar'); }
+}
+
+async function eliminarEquipo(id) {
+  if (!confirm('¿Eliminar este equipo?')) return;
+  try {
+    await sbFetch('DELETE', `equipos?id=eq.${id}`);
+    await loadEquipos();
+    renderEquipos();
+  } catch(e) { alert('Error al eliminar'); }
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
