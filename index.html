@@ -164,9 +164,18 @@
   .foto-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); overflow: hidden; }
   .foto-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; cursor: pointer; transition: opacity 0.15s; }
   .foto-card img:hover { opacity: 0.85; }
-  .foto-meta { padding: 8px 10px; }
+  .foto-meta { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; }
   .foto-serial { font-size: 12px; font-weight: 500; font-family: var(--mono); color: var(--accent); }
-  .foto-info { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .foto-info { font-size: 11px; color: var(--text3); }
+  .btn-foto-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: var(--r); }
+  .btn-foto-del:hover { color: var(--red); background: var(--red-bg); }
+  .del-confirm { display:none; position:absolute; inset:0; background:rgba(15,17,23,0.93); border-radius:var(--r2); flex-direction:column; align-items:center; justify-content:center; gap:8px; z-index:10; }
+  .del-confirm.show { display:flex; }
+  .foto-card { position: relative; }
+  /* Confirm overlay */
+  .del-confirm { display:none; position:absolute; inset:0; background:rgba(15,17,23,0.92); border-radius:var(--r2); flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+  .del-confirm.show { display:flex; }
+  .foto-card { position: relative; }
   .foto-group { margin-bottom: 20px; }
   .foto-group-title { font-size: 13px; font-weight: 500; font-family: var(--mono); color: var(--text); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; }
   .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; align-items: center; justify-content: center; }
@@ -814,10 +823,18 @@ function renderFotos() {
     const gKey = `grupo_${gi}`;
     grupoUrls[gKey] = g.fotos.map(f => f.url);
     const cards = g.fotos.map((f, i) => `
-      <div class="foto-card">
+      <div class="foto-card" id="fcard-${f.id}">
         <img src="${f.url}" loading="lazy" onclick="openLightbox('${gKey}', ${i})" alt="Foto ${i+1}" style="cursor:zoom-in">
         <div class="foto-meta">
           <div class="foto-info">${f.subida_por || ''} · ${f.fecha || ''}</div>
+          <button class="btn-foto-del" onclick="document.getElementById('fconf-${f.id}').classList.add('show')" title="Borrar foto">✕</button>
+        </div>
+        <div class="del-confirm" id="fconf-${f.id}">
+          <div style="font-size:12px;color:var(--text2);text-align:center;padding:0 12px">¿Borrar esta foto?<br>Esta acción no se puede deshacer.</div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-danger btn-sm" onclick="deleteFoto('${f.id}','${f.storage_path}')">Sí, borrar</button>
+            <button class="btn btn-sm" onclick="document.getElementById('fconf-${f.id}').classList.remove('show')">Cancelar</button>
+          </div>
         </div>
       </div>`).join('');
     return `<div class="foto-group">
@@ -828,6 +845,26 @@ function renderFotos() {
       <div class="fotos-grid">${cards}</div>
     </div>`;
   }).join('');
+}
+
+async function deleteFoto(id, storagePath) {
+  try {
+    // Borrar de la tabla
+    await sbFetch('DELETE', `fotos_trepano?id=eq.${id}`);
+    // Borrar del storage
+    await fetch(`${SUPABASE_URL}/storage/v1/object/Trepanos/${storagePath}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      }
+    });
+    await loadFotos();
+    renderFotos();
+  } catch(e) {
+    alert('Error al borrar la foto.');
+    console.error(e);
+  }
 }
 
 function goTab(t) {
