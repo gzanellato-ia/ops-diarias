@@ -186,6 +186,19 @@
   .lb-prev { left: 10px; }
   .lb-next { right: 10px; }
 
+  /* MODAL DETALLE */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; padding:16px; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:var(--r2); width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+  .modal-header { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border); }
+  .modal-title { font-size:15px; font-weight:500; font-family:var(--mono); }
+  .modal-body { padding:16px; }
+  .modal-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .modal-label { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em; min-width:110px; padding-top:2px; }
+  .modal-val { font-size:13px; color:var(--text); flex:1; }
+  .modal-nota { background:var(--bg3); border-radius:var(--r); padding:10px 12px; font-size:13px; color:var(--text2); line-height:1.55; margin-top:4px; }
+  .modal-sep { border:none; border-top:1px solid var(--border); margin:12px 0; }
+
   @media (max-width: 600px) {
     .r2, .r3, .r4 { grid-template-columns: 1fr; }
     .board { grid-template-columns: 1fr; }
@@ -434,6 +447,17 @@
   <button class="lb-nav lb-next" onclick="event.stopPropagation();lbNext()">❯</button>
 </div>
 
+<!-- MODAL DETALLE -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">—</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 // Reemplazá estos valores con los de tu proyecto Supabase
@@ -603,6 +627,10 @@ function cardHTML(o) {
     ${o.nota ? `<div class="ec-nota" id="nota-${o.id}">${o.nota.replace(/\n/g, '<br>')}</div>${notaLong ? `<span class="ec-more" onclick="toggleNota('${o.id}')">ver más ▾</span>` : ''}` : ''}
     <div class="ec-foot">
       <span class="ec-sup">${o.supervisor || ''}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-ghost" onclick="openModal(${JSON.stringify(o).split('"').join('&quot;')})" title="Ver detalle">👁</button>
+        <button class="btn btn-sm" onclick="prefillEdit(${JSON.stringify(o).split('"').join('&quot;')})" title="Editar">✎</button>
+      </div>
     </div>
   </div>`;
 }
@@ -865,6 +893,39 @@ async function deleteFoto(id, storagePath) {
     alert('Error al borrar la foto.');
     console.error(e);
   }
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openModal(o) {
+  const estados = {perforando:'Perforando',entubando:'Entubando',aislacion:'Aislación','armando-bha':'Armando BHA',dtm:'DTM','tiempo-muerto':'Tiempo muerto','bajando-herramienta':'Bajando HTA','sacando-herramienta':'Sacando HTA',walking:'Walking','monta-equipo':'Monta Equipo','controla-pozo':'Controla Pozo','parado-por-problemas':'Problema',terminado:'Terminado/TD'};
+  const avance = (o.prof_actual && o.ini_turno) ? `+${Number(o.prof_actual) - Number(o.ini_turno)} m` : '—';
+  document.getElementById('modal-title').textContent = `${o.equipo} · ${o.pozo || '—'}`;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-row"><span class="modal-label">Fecha</span><span class="modal-val">${o.fecha || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Operadora</span><span class="modal-val">${o.operadora || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Estado</span><span class="modal-val">${estados[o.estado] || o.estado || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Supervisor</span><span class="modal-val">${o.supervisor || '—'}</span></div>
+    <hr class="modal-sep">
+    <div class="modal-row"><span class="modal-label">Prof. actual</span><span class="modal-val">${o.prof_actual ? Number(o.prof_actual).toLocaleString() + ' m' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Inicio carrera</span><span class="modal-val">${o.ini_turno ? Number(o.ini_turno).toLocaleString() + ' m' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Avance</span><span class="modal-val">${avance}</span></div>
+    <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${o.td_plan ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
+    <hr class="modal-sep">
+    <div class="modal-row"><span class="modal-label">Marca</span><span class="modal-val">${o.trepano_marca || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Modelo</span><span class="modal-val">${o.trepano_modelo || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Serial</span><span class="modal-val">${o.trepano_serial || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Diámetro</span><span class="modal-val">${o.diam || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">BHA #</span><span class="modal-val">${o.bha_num || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Motor / RSS</span><span class="modal-val">${o.motor_rss || '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Boquillas</span><span class="modal-val">${o.boquillas || '—'}</span></div>
+    ${o.nota ? `<hr class="modal-sep"><div class="modal-label" style="margin-bottom:6px">Novedad</div><div class="modal-nota">${o.nota.replace(/\n/g,'<br>')}</div>` : ''}
+  `;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function goTab(t) {
