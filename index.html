@@ -612,7 +612,6 @@ function cardHTML(o) {
       </div>
       <div class="ec-actions">
         <span class="badge ${stateBadge[o.estado] || 'b-tiempo-muerto'}">${stateLabel[o.estado] || o.estado || '—'}</span>
-        <button class="btn btn-ghost btn-sm" onclick="prefillEdit(${JSON.stringify(o).split('"').join('&quot;')})" title="Editar">✎</button>
         <button class="btn btn-danger btn-sm" onclick="del('${o.id}')" title="Eliminar">✕</button>
       </div>
     </div>
