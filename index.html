@@ -750,16 +750,35 @@ async function loadFotos() {
 
 let lightboxUrls = [];
 let lightboxIdx = 0;
+const grupoUrls = {};
 
-function openLightbox(urls, idx) {
-  lightboxUrls = urls;
+function openLightbox(grupoKey, idx) {
+  lightboxUrls = grupoUrls[grupoKey] || [];
   lightboxIdx = idx;
-  document.getElementById('lb-img').src = urls[idx];
-  document.getElementById('lightbox').classList.add('open');
+  if (!lightboxUrls.length) return;
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lb-img').src = lightboxUrls[idx];
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
-function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
-function lbPrev() { lightboxIdx = (lightboxIdx - 1 + lightboxUrls.length) % lightboxUrls.length; document.getElementById('lb-img').src = lightboxUrls[lightboxIdx]; }
-function lbNext() { lightboxIdx = (lightboxIdx + 1) % lightboxUrls.length; document.getElementById('lb-img').src = lightboxUrls[lightboxIdx]; }
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function lbPrev() {
+  lightboxIdx = (lightboxIdx - 1 + lightboxUrls.length) % lightboxUrls.length;
+  document.getElementById('lb-img').src = lightboxUrls[lightboxIdx];
+}
+function lbNext() {
+  lightboxIdx = (lightboxIdx + 1) % lightboxUrls.length;
+  document.getElementById('lb-img').src = lightboxUrls[lightboxIdx];
+}
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox').classList.contains('open')) return;
+  if (e.key === 'ArrowLeft') lbPrev();
+  if (e.key === 'ArrowRight') lbNext();
+  if (e.key === 'Escape') closeLightbox();
+});
 
 function renderFotos() {
   const serialF = (document.getElementById('ff-serial').value || '').toLowerCase();
@@ -790,11 +809,13 @@ function renderFotos() {
     grupos[key].fotos.push(f);
   });
 
-  grid.innerHTML = Object.values(grupos).map(g => {
-    const urls = g.fotos.map(f => f.url);
+  const grupoKeys = {};
+  grid.innerHTML = Object.values(grupos).map((g, gi) => {
+    const gKey = `grupo_${gi}`;
+    grupoUrls[gKey] = g.fotos.map(f => f.url);
     const cards = g.fotos.map((f, i) => `
       <div class="foto-card">
-        <img src="${f.url}" loading="lazy" onclick="openLightbox(${JSON.stringify(urls)}, ${i})" alt="Foto ${i+1}">
+        <img src="${f.url}" loading="lazy" onclick="openLightbox('${gKey}', ${i})" alt="Foto ${i+1}" style="cursor:zoom-in">
         <div class="foto-meta">
           <div class="foto-info">${f.subida_por || ''} · ${f.fecha || ''}</div>
         </div>
