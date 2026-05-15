@@ -243,6 +243,7 @@
       <button class="tab" onclick="goTab('historial')">Historial</button>
       <button class="tab" onclick="goTab('admin')">⚙ Equipos</button>
       <button class="tab" onclick="goTab('fotos')">📷 Fotos</button>
+      <button class="tab" onclick="goTab('docs')">📄 Docs</button>
     </div>
 
     <!-- TABLERO -->
@@ -411,6 +412,18 @@
       <div id="fotos-grid" style="display:none"></div>
     </div>
 
+    <!-- DOCUMENTOS -->
+    <div id="tab-docs" class="panel">
+      <div class="hist-filters">
+        <input type="text" id="fd-operadora" placeholder="Operadora..." oninput="renderDocs()" style="width:140px">
+        <input type="text" id="fd-equipo" placeholder="Equipo..." oninput="renderDocs()" style="width:130px">
+        <input type="text" id="fd-descripcion" placeholder="Descripción / serial..." oninput="renderDocs()" style="width:200px">
+        <input type="date" id="fd-fecha" oninput="renderDocs()" style="width:140px">
+      </div>
+      <div id="loading-docs" class="loading"><div class="spinner"></div>Cargando...</div>
+      <div id="docs-grid" style="display:none"></div>
+    </div>
+
     <!-- HISTORIAL -->
     <div id="tab-historial" class="panel">
       <div class="hist-filters">
@@ -539,6 +552,7 @@ function showApp() {
   loadEquipos();
   loadData();
   loadFotos();
+  loadDocs();
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -933,7 +947,7 @@ function openModal(o) {
 
 function goTab(t) {
   document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', ['tablero','cargar','historial','admin','fotos'][i] === t);
+    el.classList.toggle('active', ['tablero','cargar','historial','admin','fotos','docs'][i] === t);
   });
   document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + t).classList.add('active');
@@ -941,6 +955,83 @@ function goTab(t) {
   if (t === 'historial') { renderHist(); }
   if (t === 'admin') { renderEquipos(); }
   if (t === 'fotos') { renderFotos(); }
+  if (t === 'docs') { renderDocs(); }
+}
+
+// ─── DOCUMENTOS ──────────────────────────────────────────────────────────────
+let docsData = [];
+
+async function loadDocs() {
+  try {
+    docsData = await sbFetch('GET', 'documentos?order=created_at.desc') || [];
+  } catch(e) { docsData = []; }
+  const loading = document.getElementById('loading-docs');
+  const grid    = document.getElementById('docs-grid');
+  if (loading) { loading.style.display = 'none'; grid.style.display = 'block'; }
+}
+
+function renderDocs() {
+  const opF    = (document.getElementById('fd-operadora').value || '').toLowerCase();
+  const eqF    = (document.getElementById('fd-equipo').value || '').toLowerCase();
+  const descF  = (document.getElementById('fd-descripcion').value || '').toLowerCase();
+  const fechaF = document.getElementById('fd-fecha').value || '';
+  const loading = document.getElementById('loading-docs');
+  const grid    = document.getElementById('docs-grid');
+  loading.style.display = 'none';
+  grid.style.display    = 'block';
+
+  let filtered = docsData.filter(d => {
+    if (opF   && !(d.operadora   || '').toLowerCase().includes(opF))   return false;
+    if (eqF   && !(d.equipo      || '').toLowerCase().includes(eqF))   return false;
+    if (descF && !(d.descripcion || '').toLowerCase().includes(descF)) return false;
+    if (fechaF && d.fecha !== fechaF) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3)">Sin documentos encontrados</div>';
+    return;
+  }
+
+  // Agrupar por operadora → equipo
+  const grupos = {};
+  filtered.forEach(d => {
+    const opKey = d.operadora || '—';
+    const eqKey = d.equipo || '—';
+    if (!grupos[opKey]) grupos[opKey] = {};
+    if (!grupos[opKey][eqKey]) grupos[opKey][eqKey] = [];
+    grupos[opKey][eqKey].push(d);
+  });
+
+  grid.innerHTML = Object.entries(grupos).map(([op, equiposObj]) => {
+    const equiposHtml = Object.entries(equiposObj).map(([eq, docs]) => {
+      const items = docs.map(d => {
+        const esPDF = d.tipo_archivo === 'pdf';
+        const fecha = d.fecha || '';
+        const subido = d.subida_por || '';
+        const preview = esPDF
+          ? `<a href="${d.url}" target="_blank" class="btn btn-sm" style="font-size:11px;padding:3px 10px;display:inline-block;margin-top:8px">Abrir PDF ↗</a>`
+          : `<img src="${d.url}" loading="lazy" onclick="window.open('${d.url}','_blank')" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:zoom-in;border-radius:var(--r);margin-top:8px">`;
+        return `<div class="foto-card" style="padding:10px">
+          <div style="font-size:13px;font-weight:500">${esPDF ? '📄' : '🖼️'} ${d.descripcion || '—'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${fecha}${subido ? ' · ' + subido : ''}</div>
+          ${preview}
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:16px">
+        <div class="foto-group-title">
+          <span>🔧 ${eq}</span>
+          <span style="font-size:11px;color:var(--text3)">${docs.length} doc${docs.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="fotos-grid">${items}</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);padding-bottom:6px;margin-bottom:10px;border-bottom:2px solid var(--border)">${op}</div>
+      ${equiposHtml}
+    </div>`;
+  }).join('');
 }
 
 // ─── EQUIPOS ─────────────────────────────────────────────────────────────────
