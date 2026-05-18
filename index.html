@@ -1,1116 +1,1111 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ops Diarias — Seguimiento de Perforación</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+import os
+import logging
+import httpx
+from datetime import date
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ContextTypes, filters
+)
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-  :root {
-    --bg: #0f1117;
-    --bg2: #181c27;
-    --bg3: #1e2335;
-    --border: #2a2f45;
-    --border2: #363c55;
-    --text: #e8eaf0;
-    --text2: #8b90a8;
-    --text3: #565c78;
-    --accent: #4f9cf9;
-    --green: #2dd4a0;
-    --green-bg: #0d2e25;
-    --amber: #f5a623;
-    --amber-bg: #2e2108;
-    --red: #f56c6c;
-    --red-bg: #2e1010;
-    --blue: #4f9cf9;
-    --blue-bg: #0d1e35;
-    --gray: #8b90a8;
-    --gray-bg: #1a1e2e;
-    --font: 'IBM Plex Sans', system-ui, sans-serif;
-    --mono: 'IBM Plex Mono', monospace;
-    --r: 6px;
-    --r2: 10px;
-  }
+# ─── CONFIG ──────────────────────────────────────────────────────────────────
+BOT_TOKEN    = os.environ['BOT_TOKEN']
+SUPABASE_URL = os.environ['SUPABASE_URL']
+SUPABASE_KEY = os.environ['SUPABASE_KEY']
 
-  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
-
-  /* LAYOUT */
-  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 52px; position: sticky; top: 0; z-index: 100; }
-  .header-logo { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: 0.05em; }
-  .header-sep { width: 1px; height: 20px; background: var(--border); }
-  .header-title { font-size: 13px; color: var(--text2); }
-  .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .user-badge { font-size: 12px; color: var(--text2); background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 3px 10px; }
-
-  .main { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
-
-  /* TABS */
-  .tabs { display: flex; gap: 2px; margin-bottom: 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 4px; width: fit-content; }
-  .tab { padding: 6px 16px; font-size: 13px; background: transparent; border: none; cursor: pointer; color: var(--text2); border-radius: var(--r); font-family: var(--font); transition: all 0.15s; }
-  .tab:hover { color: var(--text); background: var(--bg3); }
-  .tab.active { background: var(--bg3); color: var(--text); border: 1px solid var(--border2); }
-  .panel { display: none; } .panel.active { display: block; }
-
-  /* FORM */
-  .form-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 20px; margin-bottom: 16px; }
-  .section-title { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
-  label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; margin-top: 12px; }
-  label:first-child { margin-top: 0; }
-  input, select, textarea {
-    width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r);
-    color: var(--text); font-family: var(--font); font-size: 13px; padding: 7px 10px; outline: none;
-    transition: border-color 0.15s;
-  }
-  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-  select option { background: var(--bg3); }
-  textarea { resize: vertical; min-height: 72px; }
-  .r2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .r3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-  .r4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
-  .sep { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-  .form-actions { display: flex; gap: 8px; margin-top: 16px; }
-
-  /* BUTTONS */
-  .btn { padding: 7px 18px; font-size: 13px; cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); border-radius: var(--r); color: var(--text); font-family: var(--font); transition: all 0.15s; }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-primary { background: var(--accent); color: #0a1628; border-color: var(--accent); font-weight: 500; }
-  .btn-primary:hover { opacity: 0.88; color: #0a1628; }
-  .btn-sm { padding: 3px 10px; font-size: 11px; }
-  .btn-danger { color: var(--red); border-color: #3d1a1a; }
-  .btn-danger:hover { background: var(--red-bg); border-color: var(--red); }
-  .btn-ghost { background: transparent; border-color: transparent; color: var(--text2); }
-  .btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border); }
-
-  /* MSG */
-  .msg { padding: 8px 12px; border-radius: var(--r); font-size: 13px; margin-bottom: 12px; display: none; }
-  .msg.ok { background: var(--green-bg); color: var(--green); border: 1px solid #1a4a38; display: block; }
-  .msg.err { background: var(--red-bg); color: var(--red); border: 1px solid #4a1a1a; display: block; }
-
-  /* BOARD */
-  .board-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-  .date-nav { display: flex; align-items: center; gap: 6px; }
-  .date-nav button { padding: 5px 12px; font-size: 13px; }
-  .date-label { font-size: 15px; font-weight: 500; min-width: 130px; text-align: center; font-family: var(--mono); }
-  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
-  .no-data { grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text3); font-size: 14px; border: 1px dashed var(--border); border-radius: var(--r2); }
-
-  /* CARDS */
-  .ecard { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 14px 16px; position: relative; transition: border-color 0.15s; }
-  .ecard:hover { border-color: var(--border2); }
-  .ecard::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: var(--r2) 0 0 var(--r2); }
-  .ecard.st-perforando::before { background: var(--green); }
-  .ecard.st-entubando::before { background: var(--blue); }
-  .ecard.st-tiempo-muerto::before { background: var(--gray); }
-  .ecard.st-aislacion::before { background: var(--amber); }
-  .ecard.st-problema::before { background: var(--red); }
-  .ecard.st-terminado::before { background: var(--text3); }
-
-  .ec-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-  .ec-equipo { font-size: 15px; font-weight: 600; font-family: var(--mono); color: var(--text); }
-  .ec-pozo { font-size: 12px; color: var(--text2); margin-top: 2px; }
-  .ec-actions { display: flex; gap: 4px; align-items: flex-start; }
-
-  .badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: var(--r); white-space: nowrap; font-family: var(--mono); letter-spacing: 0.04em; }
-  .b-perforando { background: var(--green-bg); color: var(--green); border: 1px solid #1a3d2e; }
-  .b-entubando { background: var(--blue-bg); color: var(--blue); border: 1px solid #1a2e4a; }
-  .b-tiempo-muerto { background: var(--gray-bg); color: var(--gray); border: 1px solid #2a2f45; }
-  .b-aislacion { background: var(--amber-bg); color: var(--amber); border: 1px solid #3d2a0a; }
-  .b-problema { background: var(--red-bg); color: var(--red); border: 1px solid #3d1a1a; }
-  .b-terminado { background: var(--bg3); color: var(--text3); border: 1px solid var(--border); }
-
-  .ec-depths { display: flex; gap: 14px; margin: 8px 0; flex-wrap: wrap; }
-  .depth-item { font-size: 12px; color: var(--text2); }
-  .depth-item strong { color: var(--text); font-size: 13px; font-family: var(--mono); }
-  .depth-bar { height: 3px; background: var(--bg3); border-radius: 2px; margin: 6px 0; overflow: hidden; }
-  .depth-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
-
-  .ec-bit { font-size: 11px; color: var(--text3); font-family: var(--mono); margin: 6px 0; padding: 5px 8px; background: var(--bg3); border-radius: var(--r); border: 1px solid var(--border); }
-  .ec-nota { font-size: 12px; color: var(--text2); line-height: 1.55; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px; max-height: 75px; overflow: hidden; }
-  .ec-nota.expanded { max-height: none; }
-  .ec-more { font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 3px; display: inline-block; }
-  .ec-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
-  .ec-sup { font-size: 11px; color: var(--text3); font-family: var(--mono); }
-
-  /* HISTORIAL */
-  .hist-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
-  .hist-filters input, .hist-filters select { width: auto; font-size: 13px; }
-  .hrow { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 14px; margin-bottom: 7px; transition: border-color 0.15s; }
-  .hrow:hover { border-color: var(--border2); }
-  .hrow-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .hrow-date { font-size: 11px; color: var(--text3); font-family: var(--mono); min-width: 80px; }
-  .hrow-equipo { font-size: 13px; font-weight: 500; font-family: var(--mono); }
-  .hrow-pozo { font-size: 12px; color: var(--text2); }
-  .hrow-depth { font-size: 12px; color: var(--text2); margin-left: auto; font-family: var(--mono); }
-  .hrow-bit { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 5px; }
-  .hrow-nota { font-size: 12px; color: var(--text2); margin-top: 5px; line-height: 1.45; }
-
-  /* LOGIN */
-  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
-  .login-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 32px; width: 100%; max-width: 360px; }
-  .login-title { font-family: var(--mono); font-size: 18px; color: var(--accent); margin-bottom: 6px; }
-  .login-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
-  .login-card label { margin-top: 14px; }
-  .login-card label:first-of-type { margin-top: 0; }
-
-  /* LOADING */
-  .loading { display: flex; align-items: center; justify-content: center; padding: 3rem; color: var(--text2); gap: 10px; font-size: 13px; }
-  .spinner { width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .fotos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-  .foto-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); overflow: hidden; }
-  .foto-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; cursor: pointer; transition: opacity 0.15s; }
-  .foto-card img:hover { opacity: 0.85; }
-  .foto-meta { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; }
-  .foto-serial { font-size: 12px; font-weight: 500; font-family: var(--mono); color: var(--accent); }
-  .foto-info { font-size: 11px; color: var(--text3); }
-  .btn-foto-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: var(--r); }
-  .btn-foto-del:hover { color: var(--red); background: var(--red-bg); }
-  .del-confirm { display:none; position:absolute; inset:0; background:rgba(15,17,23,0.93); border-radius:var(--r2); flex-direction:column; align-items:center; justify-content:center; gap:8px; z-index:10; }
-  .del-confirm.show { display:flex; }
-  .foto-card { position: relative; }
-  /* Confirm overlay */
-  .del-confirm { display:none; position:absolute; inset:0; background:rgba(15,17,23,0.92); border-radius:var(--r2); flex-direction:column; align-items:center; justify-content:center; gap:8px; }
-  .del-confirm.show { display:flex; }
-  .foto-card { position: relative; }
-  .foto-group { margin-bottom: 20px; }
-  .foto-group-title { font-size: 13px; font-weight: 500; font-family: var(--mono); color: var(--text); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; }
-  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; align-items: center; justify-content: center; }
-  .lightbox.open { display: flex; }
-  .lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: var(--r); }
-  .lb-close { position: absolute; top: 16px; right: 20px; font-size: 28px; color: white; cursor: pointer; background: none; border: none; }
-  .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 32px; color: white; cursor: pointer; background: rgba(0,0,0,0.4); border: none; padding: 8px 14px; border-radius: var(--r); }
-  .lb-prev { left: 10px; }
-  .lb-next { right: 10px; }
-
-  /* MODAL DETALLE */
-  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; padding:16px; }
-  .modal-overlay.open { display:flex; }
-  .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:var(--r2); width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
-  .modal-header { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border); }
-  .modal-title { font-size:15px; font-weight:500; font-family:var(--mono); }
-  .modal-body { padding:16px; }
-  .modal-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
-  .modal-label { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em; min-width:110px; padding-top:2px; }
-  .modal-val { font-size:13px; color:var(--text); flex:1; }
-  .modal-nota { background:var(--bg3); border-radius:var(--r); padding:10px 12px; font-size:13px; color:var(--text2); line-height:1.55; margin-top:4px; }
-  .modal-sep { border:none; border-top:1px solid var(--border); margin:12px 0; }
-
-  @media (max-width: 600px) {
-    .r2, .r3, .r4 { grid-template-columns: 1fr; }
-    .board { grid-template-columns: 1fr; }
-  }
-</style>
-</head>
-<body>
-
-<!-- LOGIN -->
-<div id="login-view" class="login-wrap">
-  <div class="login-card">
-    <div class="login-title">OPS // DIARIAS</div>
-    <div class="login-sub">Seguimiento de operaciones de perforación</div>
-    <div id="login-msg" class="msg"></div>
-    <label>Tu nombre (supervisor)</label>
-    <input type="text" id="login-name" placeholder="Ej: Pablo Ferrante" autocomplete="name">
-    <label>Contraseña del equipo</label>
-    <input type="password" id="login-pass" placeholder="Clave compartida">
-    <div style="margin-top:16px">
-      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Entrar</button>
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:14px;text-align:center">La clave es compartida por todo el equipo</div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app-view" style="display:none">
-  <div class="header">
-    <span class="header-logo">OPS // DIARIAS</span>
-    <div class="header-sep"></div>
-    <span class="header-title">Seguimiento de perforación</span>
-    <div class="header-right">
-      <span class="user-badge" id="user-badge">—</span>
-      <button class="btn btn-ghost btn-sm" onclick="logout()">Salir</button>
-    </div>
-  </div>
-
-  <div class="main">
-    <div class="tabs">
-      <button class="tab active" onclick="goTab('tablero')">Tablero</button>
-      <button class="tab" onclick="goTab('cargar')">+ Cargar novedad</button>
-      <button class="tab" onclick="goTab('historial')">Historial</button>
-      <button class="tab" onclick="goTab('admin')">⚙ Equipos</button>
-      <button class="tab" onclick="goTab('fotos')">📷 Fotos</button>
-      <button class="tab" onclick="goTab('docs')">📄 Docs</button>
-    </div>
-
-    <!-- TABLERO -->
-    <div id="tab-tablero" class="panel active">
-      <div class="board-header">
-        <div class="date-nav">
-          <button class="btn btn-sm" onclick="changeDay(-1)">◀</button>
-          <span class="date-label" id="nav-date">—</span>
-          <button class="btn btn-sm" onclick="changeDay(1)">▶</button>
-        </div>
-        <button class="btn btn-sm" onclick="goToday()">Hoy</button>
-        <span id="board-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
-        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="loadData();renderBoard()">↻ Actualizar</button>
-      </div>
-      <div id="loading-board" class="loading"><div class="spinner"></div>Cargando...</div>
-      <div class="board" id="board-cards" style="display:none"></div>
-    </div>
-
-    <!-- ADMIN -->
-    <div id="tab-admin" class="panel">
-      <div id="admin-msg" class="msg"></div>
-      <div class="form-card">
-        <div class="section-title">Agregar equipo</div>
-        <div class="r3">
-          <div><label>Nombre del equipo</label><input type="text" id="adm-nombre" placeholder="Ej: HP224, DLS169..."></div>
-          <div><label>Operadora</label>
-            <select id="adm-op">
-              <option value="">—</option>
-              <option>YPF</option><option>Pan American Energy</option>
-              <option>TotalEnergies</option><option>Shell</option>
-              <option>Pampa Energía</option><option>Tecpetrol</option>
-              <option>Vista Energy</option><option>Chevron</option><option>Otra</option>
-            </select>
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button class="btn btn-primary" onclick="agregarEquipo()" style="width:100%">Agregar</button>
-          </div>
-        </div>
-      </div>
-      <div class="form-card">
-        <div class="section-title">Equipos registrados</div>
-        <div id="equipos-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
-      </div>
-    </div>
-
-    <!-- ADMIN -->
-    <div id="tab-admin" class="panel">
-      <div id="admin-msg" class="msg"></div>
-      <div class="form-card">
-        <div class="section-title">Agregar equipo</div>
-        <div class="r3">
-          <div><label>Nombre del equipo</label><input type="text" id="adm-nombre" placeholder="Ej: HP224, DLS169..."></div>
-          <div><label>Operadora</label>
-            <select id="adm-op">
-              <option value="">—</option>
-              <option>YPF</option><option>Pan American Energy</option>
-              <option>TotalEnergies</option><option>Shell</option>
-              <option>Pampa Energía</option><option>Tecpetrol</option>
-              <option>Vista Energy</option><option>Chevron</option><option>Otra</option>
-            </select>
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button class="btn btn-primary" onclick="agregarEquipo()" style="width:100%">Agregar</button>
-          </div>
-        </div>
-      </div>
-      <div class="form-card">
-        <div class="section-title">Equipos registrados</div>
-        <div id="equipos-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
-      </div>
-    </div>
-
-    <!-- CARGAR -->
-    <div id="tab-cargar" class="panel">
-      <div id="fmsg" class="msg"></div>
-      <div class="form-card">
-        <div class="section-title">Identificación</div>
-        <div class="r3">
-          <div><label>Fecha</label><input type="date" id="f-fecha"></div>
-          <div><label>Equipo de perforación</label><select id="f-equipo"><option value="">Seleccionar equipo...</option></select></div>
-          <div><label>Pozo</label><input type="text" id="f-pozo" placeholder="Ej: LACH-871, LLL1820..."></div>
-        </div>
-        <div class="r3">
-          <div><label>Operadora</label>
-            <select id="f-op">
-              <option value="">—</option>
-              <option>YPF</option><option>Pan American Energy</option>
-              <option>TotalEnergies</option><option>Shell</option>
-              <option>Pampa Energía</option><option>Tecpetrol</option>
-              <option>Vista Energy</option><option>Chevron</option><option>Otra</option>
-            </select>
-          </div>
-          <div><label>Estado operación</label>
-            <select id="f-estado">
-              <option value="perforando">Perforando</option>
-              <option value="entubando">Entubando</option>
-              <option value="dtm">DTM</option>
-              <option value="monta-equipo">Monta Equipo</option>
-              <option value="walking">Walking</option>
-              <option value="tiempo-muerto">Tiempo muerto</option>
-              <option value="armando-bha">Armando BHA</option>
-              <option value="bajando-herramienta">Bajando Herramienta</option>
-              <option value="sacando-herramienta">Sacando Herramienta</option>
-              <option value="controla-pozo">Controla Pozo</option>
-              <option value="parado-por-problemas">Parado por Problemas</option>
-              <option value="terminado">Terminado / TD</option>
-            </select>
-          </div>
-          <div><label>Supervisor</label><input type="text" id="f-sup" placeholder="Nombre"></div>
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="section-title">Profundidades</div>
-        <div class="r4">
-          <div><label>Prof. actual (m)</label><input type="number" id="f-prof" placeholder="5600" min="0"></div>
-          <div><label>Prof. inicio de carrera (m)</label><input type="number" id="f-ini" placeholder="2200" min="0" oninput="calcAvance()"></div>
-          <div><label>Avance de carrera (m)</label><input type="number" id="f-avance" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
-          <div><label>Prof. final de carrera (m)</label><input type="number" id="f-td" placeholder="7800" min="0"></div>
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="section-title">Trépano en fondo</div>
-        <div class="r4">
-          <div><label>Marca</label><select id="f-marca"><option value="">—</option><option>SLB</option><option>Baker Hughes</option><option>Ulterra</option><option>Halliburton</option><option>NOV</option><option>Otra</option></select></div>
-          <div><label>Modelo</label><input type="text" id="f-modelo" placeholder="HVT513, HT513..."></div>
-          <div><label>Serial</label><input type="text" id="f-serial" placeholder="SP5639..."></div>
-          <div><label>Diámetro</label>
-            <select id="f-diam">
-              <option value="">—</option>
-              <option>6"</option><option>6.125"</option><option>6¾"</option><option>8½"</option>
-              <option>8.75"</option><option>11.875"</option><option>12¼"</option>
-              <option>13½"</option><option>17½"</option><option>26"</option>
-            </select>
-          </div>
-          <div><label>BHA #</label><input type="number" id="f-bha" placeholder="1" min="1"></div>
-        </div>
-        <div class="r2">
-          <div><label>Motor / RSS</label><input type="text" id="f-motor" placeholder="VorteX + Clink + ImPulse"></div>
-          <div><label>Boquillas</label><input type="text" id="f-boq" placeholder="3x9 + 2x10"></div>
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="section-title">Novedad del día</div>
-        <label>Descripción</label>
-        <textarea id="f-nota" placeholder="Resumí la actividad: ROP, incidentes, cambios de BHA, decisiones, alertas..."></textarea>
-      </div>
-
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="guardar()">Guardar registro</button>
-        <button class="btn" onclick="limpiar()">Limpiar</button>
-      </div>
-    </div>
-
-    <!-- FOTOS -->
-    <div id="tab-fotos" class="panel">
-      <div class="hist-filters">
-        <input type="text" id="ff-serial" placeholder="Serial..." oninput="renderFotos()" style="width:140px">
-        <input type="text" id="ff-pozo" placeholder="Pozo..." oninput="renderFotos()" style="width:140px">
-        <input type="text" id="ff-equipo" placeholder="Equipo..." oninput="renderFotos()" style="width:130px">
-        <input type="text" id="ff-tipo" placeholder="Modelo (HVT513...)" oninput="renderFotos()" style="width:150px">
-      </div>
-      <div id="loading-fotos" class="loading"><div class="spinner"></div>Cargando...</div>
-      <div id="fotos-grid" style="display:none"></div>
-    </div>
-
-    <!-- DOCUMENTOS -->
-    <div id="tab-docs" class="panel">
-      <div class="hist-filters">
-        <input type="text" id="fd-operadora" placeholder="Operadora..." oninput="renderDocs()" style="width:140px">
-        <input type="text" id="fd-equipo" placeholder="Equipo..." oninput="renderDocs()" style="width:130px">
-        <input type="text" id="fd-descripcion" placeholder="Descripción / serial..." oninput="renderDocs()" style="width:200px">
-        <input type="date" id="fd-fecha" oninput="renderDocs()" style="width:140px">
-      </div>
-      <div id="loading-docs" class="loading"><div class="spinner"></div>Cargando...</div>
-      <div id="docs-grid" style="display:none"></div>
-    </div>
-
-    <!-- HISTORIAL -->
-    <div id="tab-historial" class="panel">
-      <div class="hist-filters">
-        <input type="text" id="hf-eq" placeholder="Equipo..." oninput="renderHist()" style="width:130px">
-        <input type="text" id="hf-pz" placeholder="Pozo..." oninput="renderHist()" style="width:130px">
-        <select id="hf-st" onchange="renderHist()">
-
-          <option value="">Todos los estados</option>
-          <option value="perforando">Perforando</option>
-          <option value="entubando">Entubando</option>
-          <option value="dtm">DTM</option>
-          <option value="monta-equipo">Monta Equipo</option>
-          <option value="walking">Walking</option>
-          <option value="tiempo-muerto">Tiempo muerto</option>
-          <option value="armando-bha">Armando BHA</option>
-          <option value="bajando-herramienta">Bajando Herramienta</option>
-          <option value="sacando-herramienta">Sacando Herramienta</option>
-          <option value="controla-pozo">Controla Pozo</option>
-          <option value="parado-por-problemas">Parado por Problemas</option>
-          <option value="terminado">Terminado / TD</option>
-        </select>
-        <button class="btn btn-sm" style="margin-left:auto" onclick="exportCSV()">Exportar CSV</button>
-      </div>
-      <div id="loading-hist" class="loading"><div class="spinner"></div>Cargando...</div>
-      <div id="hist-list" style="display:none"></div>
-    </div>
-  </div>
-</div>
-
-<!-- LIGHTBOX -->
-<div id="lightbox" class="lightbox" onclick="closeLightbox()">
-  <button class="lb-close" onclick="closeLightbox()">✕</button>
-  <button class="lb-nav lb-prev" onclick="event.stopPropagation();lbPrev()">❮</button>
-  <img id="lb-img" src="" onclick="event.stopPropagation()">
-  <button class="lb-nav lb-next" onclick="event.stopPropagation();lbNext()">❯</button>
-</div>
-
-<!-- MODAL DETALLE -->
-<div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <span class="modal-title" id="modal-title">—</span>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
-</div>
-
-<script>
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
-// Reemplazá estos valores con los de tu proyecto Supabase
-const SUPABASE_URL = 'https://ttnbgqlwcgnytjoldtmx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Yd5gG_ookiCMacB0XeSAKQ_6cgOZnwn';
-const APP_PASSWORD = 'perforacion2026'; // cambiar antes de usar
-
-// ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
-async function sbFetch(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'return=representation' : 'return=representation',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-  return res.status === 204 ? null : res.json();
+GRUPO_OPERADORA = {
+    -1003939825021: 'YPF',
+    -5050163783: 'PAE',
+    -5050479649: 'PHOENIX',
+    -5108138322: 'TECPETROL',
+    -5199946178: 'CHEVRON',
+    -5254820418: 'VISTA',
 }
 
-async function getOps(fecha) {
-  return sbFetch('GET', `operaciones?fecha=eq.${fecha}&order=equipo.asc`);
+HEADERS = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': f'Bearer {SUPABASE_KEY}',
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation',
 }
 
-async function getAllOps() {
-  return sbFetch('GET', 'operaciones?order=fecha.desc,equipo.asc');
+ESTADOS_LABEL = {
+    'perforando': 'Perforando', 'entubando': 'Entubando',
+    'aislacion': 'Aislación', 'armando-bha': 'Armando BHA',
+    'dtm': 'DTM', 'tiempo-muerto': 'Tiempo muerto',
+    'bajando-herramienta': 'Bajando HTA', 'sacando-herramienta': 'Sacando HTA',
+    'walking': 'Walking', 'monta-equipo': 'Monta Equipo',
+    'controla-pozo': 'Controla Pozo', 'parado-por-problemas': 'Problema',
+    'terminado': 'Terminado/TD',
 }
 
-async function upsertOp(reg) {
-  const existing = await sbFetch('GET', `operaciones?fecha=eq.${reg.fecha}&equipo=eq.${encodeURIComponent(reg.equipo)}`);
-  if (existing && existing.length > 0) {
-    const id = existing[0].id;
-    return sbFetch('PATCH', `operaciones?id=eq.${id}`, reg);
-  } else {
-    return sbFetch('POST', 'operaciones', reg);
-  }
+# ─── SUPABASE ─────────────────────────────────────────────────────────────────
+async def sb_get(path):
+    async with httpx.AsyncClient() as c:
+        r = await c.get(f'{SUPABASE_URL}/rest/v1/{path}', headers=HEADERS)
+        return r.json()
+
+async def sb_post(path, data):
+    async with httpx.AsyncClient() as c:
+        r = await c.post(f'{SUPABASE_URL}/rest/v1/{path}', headers=HEADERS, json=data)
+        return r
+
+async def sb_patch(path, data):
+    async with httpx.AsyncClient() as c:
+        r = await c.patch(f'{SUPABASE_URL}/rest/v1/{path}', headers=HEADERS, json=data)
+        return r
+
+# ─── HELPERS ──────────────────────────────────────────────────────────────────
+def hoy():
+    return date.today().isoformat()
+
+async def get_equipos_operadora(operadora):
+    return await sb_get(f"equipos?operadora=eq.{operadora}&activo=eq.true&order=nombre.asc")
+
+async def get_ultimo_registro(equipo):
+    rows = await sb_get(f"operaciones?equipo=eq.{equipo}&order=fecha.desc&limit=1")
+    return rows[0] if isinstance(rows, list) and rows else None
+
+async def get_novedad_hoy(equipo):
+    rows = await sb_get(f"operaciones?equipo=eq.{equipo}&fecha=eq.{hoy()}&limit=1")
+    return rows[0] if isinstance(rows, list) and rows else None
+
+async def get_novedades_hoy_operadora(operadora):
+    equipos = await get_equipos_operadora(operadora)
+    nombres = [e['nombre'] for e in equipos]
+    novedades = await sb_get(f"operaciones?fecha=eq.{hoy()}")
+    cargados = {n['equipo'] for n in novedades} if isinstance(novedades, list) else set()
+    return nombres, cargados
+
+# ─── ESTADO POR USUARIO ───────────────────────────────────────────────────────
+user_state = {}
+foto_state = {}  # {user_id: {equipo, pozo, serial, tipo, fotos:[], step}}
+doc_state  = {}  # {user_id: {operadora, equipo, descripcion, archivos:[], step}}
+
+# ─── TECLADOS ─────────────────────────────────────────────────────────────────
+def kb_estados():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 Perforando", callback_data="st_perforando"),
+         InlineKeyboardButton("🔵 Entubando", callback_data="st_entubando")],
+        [InlineKeyboardButton("🟡 Aislación", callback_data="st_aislacion"),
+         InlineKeyboardButton("🟡 Armando BHA", callback_data="st_armando-bha")],
+        [InlineKeyboardButton("⚫ DTM", callback_data="st_dtm"),
+         InlineKeyboardButton("⚫ Tiempo muerto", callback_data="st_tiempo-muerto")],
+        [InlineKeyboardButton("🔵 Bajando HTA", callback_data="st_bajando-herramienta"),
+         InlineKeyboardButton("🔵 Sacando HTA", callback_data="st_sacando-herramienta")],
+        [InlineKeyboardButton("⚫ Walking", callback_data="st_walking"),
+         InlineKeyboardButton("⚫ Monta Equipo", callback_data="st_monta-equipo")],
+        [InlineKeyboardButton("🔴 Controla Pozo", callback_data="st_controla-pozo"),
+         InlineKeyboardButton("🔴 Problema", callback_data="st_parado-por-problemas")],
+        [InlineKeyboardButton("⬜ Terminado/TD", callback_data="st_terminado")],
+    ])
+
+def kb_marcas():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("SLB", callback_data="marca_SLB"),
+         InlineKeyboardButton("Baker Hughes", callback_data="marca_BH")],
+        [InlineKeyboardButton("Ulterra", callback_data="marca_Ulterra"),
+         InlineKeyboardButton("Halliburton", callback_data="marca_Halliburton")],
+        [InlineKeyboardButton("NOV", callback_data="marca_NOV"),
+         InlineKeyboardButton("Otra", callback_data="marca_Otra")],
+        [InlineKeyboardButton("⏭ Saltar", callback_data="marca_skip")],
+    ])
+
+def kb_diametros():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton('6.125"', callback_data='diam_6.125'),
+         InlineKeyboardButton('6¾"', callback_data='diam_6.75'),
+         InlineKeyboardButton('8½"', callback_data='diam_8.5')],
+        [InlineKeyboardButton('8.75"', callback_data='diam_8.75'),
+         InlineKeyboardButton('11.875"', callback_data='diam_11.875'),
+         InlineKeyboardButton('12¼"', callback_data='diam_12.25')],
+        [InlineKeyboardButton('13½"', callback_data='diam_13.5'),
+         InlineKeyboardButton('17½"', callback_data='diam_17.5'),
+         InlineKeyboardButton('26"', callback_data='diam_26')],
+        [InlineKeyboardButton("⏭ Saltar", callback_data="diam_skip")],
+    ])
+
+DIAM_LABELS = {
+    '6.125': '6.125"', '6.75': '6¾"', '8.5': '8½"',
+    '8.75': '8.75"', '11.875': '11.875"', '12.25': '12¼"',
+    '13.5': '13½"', '17.5': '17½"', '26': '26"',
 }
 
-async function deleteOp(id) {
-  return sbFetch('DELETE', `operaciones?id=eq.${id}`);
-}
+def kb_sistema():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Convencional", callback_data="sis_Convencional"),
+         InlineKeyboardButton("Motor", callback_data="sis_Motor")],
+        [InlineKeyboardButton("RSS Standalone", callback_data="sis_RSS-Standalone"),
+         InlineKeyboardButton("RSS Motorizado", callback_data="sis_RSS-Motorizado")],
+        [InlineKeyboardButton("⏭ Saltar", callback_data="sis_skip")],
+    ])
 
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
-let currentUser = '';
+def kb_cantidad_boq(tipo_idx):
+    rows = []
+    nums = list(range(1, 16))
+    for i in range(0, 15, 5):
+        rows.append([InlineKeyboardButton(str(n), callback_data=f"bcant.{tipo_idx}.{n}") for n in nums[i:i+5]])
+    rows.append([InlineKeyboardButton("⏭ Saltar boquillas", callback_data="nboq_skip")])
+    return InlineKeyboardMarkup(rows)
 
-function doLogin() {
-  const name = document.getElementById('login-name').value.trim();
-  const pass = document.getElementById('login-pass').value;
-  const msg = document.getElementById('login-msg');
-  if (!name) { msg.className = 'msg err'; msg.textContent = 'Ingresá tu nombre.'; return; }
-  if (pass !== APP_PASSWORD) { msg.className = 'msg err'; msg.textContent = 'Contraseña incorrecta.'; return; }
-  currentUser = name;
-  localStorage.setItem('ops_user', name);
-  showApp();
-}
+def kb_diam_boq(tipo_idx, cantidad):
+    diams = list(range(8, 25))
+    rows = []
+    row = []
+    for d in diams:
+        row.append(InlineKeyboardButton(str(d), callback_data=f"bdiam.{tipo_idx}.{cantidad}.{d}"))
+        if len(row) == 5:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
 
-function logout() {
-  localStorage.removeItem('ops_user');
-  currentUser = '';
-  document.getElementById('app-view').style.display = 'none';
-  document.getElementById('login-view').style.display = 'flex';
-}
+def kb_otro_tipo(tipo_idx):
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("➕ Agregar otro tipo", callback_data=f"boq_mas.{tipo_idx}"),
+        InlineKeyboardButton("✅ Listo", callback_data="boq_fin"),
+    ]])
 
-function showApp() {
-  document.getElementById('login-view').style.display = 'none';
-  document.getElementById('app-view').style.display = 'block';
-  document.getElementById('user-badge').textContent = currentUser;
-  viewDate = today();
-  document.getElementById('f-fecha').value = viewDate;
-  document.getElementById('f-sup').value = currentUser;
-  document.getElementById('nav-date').textContent = fmtDate(viewDate) + ' · hoy';
-  loadEquipos();
-  loadData();
-  loadFotos();
-  loadDocs();
-}
+# ─── COMANDOS ─────────────────────────────────────────────────────────────────
+async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"CMD_START - chat_id: {update.effective_chat.id} titulo: {update.effective_chat.title}")
+    await update.message.reply_text(
+        "👷 *OPS DIARIAS BOT*\n\n"
+        "Comandos disponibles:\n"
+        "/novedad — Cargar novedad de un equipo\n"
+        "/faltantes — Ver qué equipos no tienen novedad hoy\n"
+        "/resumen — Resumen del día\n"
+        "/foto — Subir fotos de un trépano usado\n"
+        "/doc — Subir documentos (remitos, etc.)\n"
+        "/cancelar — Cancelar la carga en curso\n"
+        "/ayuda — Ver esta ayuda\n\n"
+        "📷 *Fotos de trépano* — /foto\n"
+        "El bot te va a pedir: equipo → pozo → serial → modelo. "
+        "Después mandás las fotos una por una y cerrás con /listo.\n\n"
+        "📄 *Documentos* — /doc\n"
+        "El bot te va a pedir: equipo → descripción. "
+        "Después mandás los archivos (foto o PDF) uno por uno y cerrás con /listodoc.\n\n"
+        "💡 *Tip para remitos con varios seriales:*\n"
+        "Escribí todos los seriales en la descripción, por ejemplo:\n"
+        "Remito SP4138 SP5201 SP6033\n"
+        "Así los podés encontrar después buscando cualquiera de los seriales en la app.",
+        parse_mode='Markdown'
+    )
 
-// ─── DATA ─────────────────────────────────────────────────────────────────────
-let ops = [];
-let viewDate = '';
+async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await cmd_start(update, ctx)
 
-async function loadData() {
-  try {
-    ops = await getAllOps() || [];
-  } catch(e) {
-    ops = [];
-    console.error('Error cargando datos:', e);
-  }
-  renderBoard();
-  const hist = document.getElementById('hist-list');
-  if (hist.style.display !== 'none') renderHist();
-}
+async def cmd_cancelar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in user_state:
+        del user_state[user_id]
+        await update.message.reply_text("❌ Carga cancelada. Podés empezar de nuevo con /novedad.")
+    elif user_id in foto_state:
+        del foto_state[user_id]
+        await update.message.reply_text("❌ Carga de fotos cancelada.")
+    elif user_id in doc_state:
+        del doc_state[user_id]
+        await update.message.reply_text("❌ Carga de documento cancelada.")
+    else:
+        await update.message.reply_text("No hay ninguna carga en curso.")
 
-// ─── UTILS ───────────────────────────────────────────────────────────────────
-function today() { return new Date().toISOString().split('T')[0]; }
-function toISO(d) { return d.toISOString().split('T')[0]; }
-function fmtDate(s) {
-  if (!s) return '—';
-  const [y, m, d] = s.split('-');
-  const days = ['dom','lun','mar','mié','jue','vie','sáb'];
-  const day = days[new Date(s + 'T12:00:00').getDay()];
-  return `${day} ${d}/${m}/${y}`;
-}
+async def cmd_faltantes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    operadora = GRUPO_OPERADORA.get(chat_id)
+    if not operadora:
+        await update.message.reply_text("⚠️ Este grupo no está configurado. Contactá al administrador.")
+        return
+    nombres, cargados = await get_novedades_hoy_operadora(operadora)
+    faltantes = [n for n in nombres if n not in cargados]
+    listos = [n for n in nombres if n in cargados]
+    fecha_str = date.today().strftime('%d/%m/%Y')
+    msg = f"📊 *Novedades {fecha_str} — {operadora}*\n━━━━━━━━━━━━━━━\n"
+    for e in listos:
+        msg += f"✅ {e}\n"
+    for e in faltantes:
+        msg += f"❌ {e} — sin novedad\n"
+    msg += "━━━━━━━━━━━━━━━\n"
+    if faltantes:
+        msg += f"Faltan *{len(faltantes)}* equipo{'s' if len(faltantes)>1 else ''}"
+    else:
+        msg += "✅ Todos los equipos tienen novedad cargada"
+    await update.message.reply_text(msg, parse_mode='Markdown')
 
-const stateLabel = { perforando:'Perforando', entubando:'Entubando', aislacion:'Aislación', 'tiempo-muerto':'Tiempo muerto', problema:'Problema', terminado:'Terminado', dtm:'DTM', 'armando-bha':'Armando BHA' };
-const stateBadge = { perforando:'b-perforando', entubando:'b-entubando', aislacion:'b-aislacion', 'tiempo-muerto':'b-tiempo-muerto', problema:'b-problema', terminado:'b-terminado', dtm:'b-tiempo-muerto', 'armando-bha':'b-aislacion' };
+async def cmd_resumen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    operadora = GRUPO_OPERADORA.get(chat_id)
+    if not operadora:
+        await update.message.reply_text("⚠️ Este grupo no está configurado.")
+        return
+    novedades = await sb_get(f"operaciones?fecha=eq.{hoy()}&order=equipo.asc")
+    equipos_op = await get_equipos_operadora(operadora)
+    nombres_op = {e['nombre'] for e in equipos_op}
+    hoy_op = [n for n in novedades if n['equipo'] in nombres_op] if isinstance(novedades, list) else []
+    if not hoy_op:
+        await update.message.reply_text(f"Sin novedades cargadas hoy para {operadora}.")
+        return
+    iconos = {
+        'perforando':'🟢','entubando':'🔵','aislacion':'🟡','armando-bha':'🟡',
+        'dtm':'⚫','tiempo-muerto':'⚫','bajando-herramienta':'🔵','sacando-herramienta':'🔵',
+        'walking':'⚫','monta-equipo':'⚫','controla-pozo':'🔴','parado-por-problemas':'🔴',
+        'terminado':'⬜',
+    }
+    fecha_str = date.today().strftime('%d/%m/%Y')
+    msg = f"📋 *Resumen {fecha_str} — {operadora}*\n━━━━━━━━━━━━━━━\n"
+    for n in hoy_op:
+        ico = iconos.get(n.get('estado',''), '⚪')
+        prof = f"{int(n['prof_actual']):,} m" if n.get('prof_actual') else '—'
+        msg += f"{ico} *{n['equipo']}* · {n.get('pozo','—')} · {prof}\n"
+        if n.get('nota'):
+            nota = n['nota'][:80] + ('...' if len(n['nota']) > 80 else '')
+            msg += f"   _{nota}_\n"
+    await update.message.reply_text(msg, parse_mode='Markdown')
 
-// ─── BOARD ───────────────────────────────────────────────────────────────────
-function changeDay(d) {
-  const dt = new Date(viewDate + 'T12:00:00');
-  dt.setDate(dt.getDate() + d);
-  viewDate = toISO(dt);
-  const isToday = viewDate === today();
-  document.getElementById('nav-date').textContent = fmtDate(viewDate) + (isToday ? ' · hoy' : '');
-  renderBoard();
-}
-function goToday() {
-  viewDate = today();
-  document.getElementById('nav-date').textContent = fmtDate(viewDate) + ' · hoy';
-  renderBoard();
-}
+async def cmd_novedad(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    operadora = GRUPO_OPERADORA.get(chat_id) or ctx.user_data.get("operadora")
+    if update.effective_chat.type == "private":
+        op = ctx.user_data.get("operadora")
+        if not op:
+            await update.message.reply_text("⚠️ Usá /novedad desde el grupo de tu operadora.")
+            return
+        operadora = op
+    if not operadora:
+        await update.message.reply_text("⚠️ Este grupo no está configurado. Contactá al administrador.")
+        return
+    equipos = await get_equipos_operadora(operadora)
+    if not equipos:
+        await update.message.reply_text(f"No hay equipos activos para {operadora}.")
+        return
+    keyboard = []
+    row = []
+    for e in equipos:
+        nombre = e['nombre']
+        row.append(InlineKeyboardButton(nombre, callback_data=f"eq_{nombre}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    ctx.user_data["operadora"] = operadora
+    if update.effective_chat.type != "private":
+        ctx.user_data["grupo_id"] = chat_id
+        try:
+            await ctx.bot.send_message(
+                chat_id=user_id,
+                text=f"🔧 *{operadora}* — ¿Para qué equipo cargás la novedad?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            await update.message.reply_text(f"📲 {update.effective_user.first_name}, te mandé el formulario por privado.")
+        except:
+            await update.message.reply_text("⚠️ Primero escribile `/start` al bot en privado.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            f"🔧 *{operadora}* — ¿Para qué equipo cargás la novedad?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
-function renderBoard() {
-  const loading = document.getElementById('loading-board');
-  const board = document.getElementById('board-cards');
-  const day = ops.filter(o => o.fecha === viewDate);
-  loading.style.display = 'none';
-  board.style.display = 'grid';
-  document.getElementById('board-count').textContent = day.length ? `${day.length} equipo${day.length > 1 ? 's' : ''}` : '';
-  if (!day.length) {
-    board.innerHTML = `<div class="no-data">Sin registros para ${fmtDate(viewDate)}<br><span style="font-size:12px;color:var(--text3);margin-top:6px;display:block">Cargá la primera novedad del día →</span></div>`;
-    return;
-  }
-  board.innerHTML = day.map(o => cardHTML(o)).join('');
-}
+# ─── CALLBACKS NOVEDAD ────────────────────────────────────────────────────────
+async def callback_equipo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    equipo = query.data.replace('eq_', '')
+    user_id = query.from_user.id
+    ultimo = await get_ultimo_registro(equipo)
+    novedad_hoy = await get_novedad_hoy(equipo)
+    if novedad_hoy:
+        await query.edit_message_text(
+            f"⚠️ *{equipo}* ya tiene novedad cargada hoy.\n\n"
+            f"Pozo: {novedad_hoy.get('pozo','—')} | Prof: {novedad_hoy.get('prof_actual','—')} m\n"
+            f"_{novedad_hoy.get('nota','') or ''}_\n\n"
+            f"¿Querés reemplazarla?",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Sí, reemplazar", callback_data=f"repl_{equipo}"),
+                InlineKeyboardButton("❌ No", callback_data="cancelar")
+            ]]),
+            parse_mode='Markdown'
+        )
+        return
+    await iniciar_carga(query, equipo, ultimo)
 
-function cardHTML(o) {
-  const metros = (o.fin_turno && o.ini_turno) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
-  const pct = (o.td_plan && o.prof_actual) ? Math.min(100, Math.round(Number(o.prof_actual) / Number(o.td_plan) * 100)) : null;
-  const notaLong = o.nota && o.nota.length > 100;
-  const bitStr = [o.diam, o.trepano_modelo, o.trepano_serial ? 'S/N: ' + o.trepano_serial : '', o.boquillas].filter(Boolean).join(' · ');
-  return `<div class="ecard st-${o.estado || 'tiempo-muerto'}">
-    <div class="ec-top">
-      <div>
-        <div class="ec-equipo">${o.equipo || '—'}</div>
-        <div class="ec-pozo">${o.pozo || '—'}${o.operadora ? ' · ' + o.operadora : ''}</div>
-      </div>
-      <div class="ec-actions">
-        <span class="badge ${stateBadge[o.estado] || 'b-tiempo-muerto'}">${stateLabel[o.estado] || o.estado || '—'}</span>
-        <button class="btn btn-ghost btn-sm" onclick="prefillEdit(${JSON.stringify(o).split('"').join('&quot;')})" title="Editar">✎</button>
-        <button class="btn btn-danger btn-sm" onclick="del('${o.id}')" title="Eliminar">✕</button>
-      </div>
-    </div>
-    <div class="ec-depths">
-      ${o.prof_actual ? `<div class="depth-item">Prof: <strong>${Number(o.prof_actual).toLocaleString()} m</strong></div>` : ''}
-      ${metros !== null && metros > 0 ? `<div class="depth-item">Hoy: <strong>+${metros} m</strong></div>` : ''}
-      ${o.td_plan ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
-      ${o.bha_num ? `<div class="depth-item">BHA <strong>#${o.bha_num}</strong></div>` : ''}
-    </div>
-    ${pct !== null ? `<div class="depth-bar"><div class="depth-fill" style="width:${pct}%"></div></div>` : ''}
-    ${bitStr ? `<div class="ec-bit">${bitStr}${o.motor_rss ? ' · ' + o.motor_rss : ''}</div>` : ''}
-    ${o.nota ? `<div class="ec-nota" id="nota-${o.id}">${o.nota.replace(/\n/g, '<br>')}</div>${notaLong ? `<span class="ec-more" onclick="toggleNota('${o.id}')">ver más ▾</span>` : ''}` : ''}
-    <div class="ec-foot">
-      <span class="ec-sup">${o.supervisor || ''}</span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-sm btn-ghost" onclick="openModal(${JSON.stringify(o).split('"').join('&quot;')})" title="Ver detalle">👁</button>
-        <button class="btn btn-sm" onclick="prefillEdit(${JSON.stringify(o).split('"').join('&quot;')})" title="Editar">✎</button>
-      </div>
-    </div>
-  </div>`;
-}
+async def callback_reemplazar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    equipo = query.data.replace('repl_', '')
+    ultimo = await get_ultimo_registro(equipo)
+    await iniciar_carga(query, equipo, ultimo)
 
-function toggleNota(id) {
-  const el = document.getElementById('nota-' + id);
-  el.classList.toggle('expanded');
-  el.nextElementSibling.textContent = el.classList.contains('expanded') ? 'ver menos ▴' : 'ver más ▾';
-}
+async def callback_cancelar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("❌ Carga cancelada.")
 
-// ─── HISTORIAL ───────────────────────────────────────────────────────────────
-function renderHist() {
-  const eq = (document.getElementById('hf-eq').value || '').toLowerCase();
-  const pz = (document.getElementById('hf-pz').value || '').toLowerCase();
-  const st = document.getElementById('hf-st').value;
-  const loading = document.getElementById('loading-hist');
-  const list = document.getElementById('hist-list');
-  const filtered = ops.filter(o => {
-    if (eq && !(o.equipo || '').toLowerCase().includes(eq)) return false;
-    if (pz && !(o.pozo || '').toLowerCase().includes(pz)) return false;
-    if (st && o.estado !== st) return false;
-    return true;
-  });
-  loading.style.display = 'none';
-  list.style.display = 'block';
-  if (!filtered.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3)">Sin resultados</div>'; return; }
-  list.innerHTML = filtered.map(o => {
-    const metros = (o.fin_turno && o.ini_turno) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
-    const bitStr = [o.diam, o.trepano_modelo, o.trepano_serial ? 'S/N:' + o.trepano_serial : '', o.motor_rss, o.boquillas].filter(Boolean).join(' · ');
-    return `<div class="hrow">
-      <div class="hrow-top">
-        <span class="hrow-date">${fmtDate(o.fecha)}</span>
-        <span class="hrow-equipo">${o.equipo || '—'}</span>
-        <span class="hrow-pozo">${o.pozo || ''}</span>
-        <span class="badge ${stateBadge[o.estado] || 'b-tiempo-muerto'}" style="font-size:10px">${stateLabel[o.estado] || o.estado || '—'}</span>
-        <span class="hrow-depth">
-  ${o.ini_turno ? `Inicio: ${Number(o.ini_turno).toLocaleString()} m` : ''}
-  ${o.prof_actual ? ` · Actual: ${Number(o.prof_actual).toLocaleString()} m` : ''}
-  ${o.td_plan ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
-  ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
-</span>
-        <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>
-      </div>
-      ${bitStr ? `<div class="hrow-bit">${bitStr}</div>` : ''}
-      ${o.nota ? `<div class="hrow-nota">${o.nota}</div>` : ''}
-    </div>`;
-  }).join('');
-}
+async def iniciar_carga(query, equipo, ultimo):
+    user_id = query.from_user.id
+    user_state[user_id] = {
+        'equipo': equipo,
+        'step': 'pozo',
+        'pozo': ultimo.get('pozo', '') if ultimo else '',
+        'prof_actual': ultimo.get('prof_actual', '') if ultimo else '',
+        'ini_turno': ultimo.get('ini_turno', '') if ultimo else '',
+        'td_plan': ultimo.get('td_plan', '') if ultimo else '',
+        'trepano_marca': '',
+        'trepano_modelo': ultimo.get('trepano_modelo', '') if ultimo else '',
+        'trepano_serial': ultimo.get('trepano_serial', '') if ultimo else '',
+        'diam': '',
+        'bha_num': '',
+        'motor_rss': '',
+        'boquillas': '',
+        'boq_grupos': [],
+        'nota': '',
+        'estado': 'perforando',
+    }
+    pozo_hint = f" (último: *{user_state[user_id]['pozo']}*)" if user_state[user_id]['pozo'] else ""
+    await query.edit_message_text(
+        f"📋 *{equipo}* — Novedad del día\n\n"
+        f"*Paso 1/12* — ¿En qué pozo está?{pozo_hint}\n"
+        f"Escribí el nombre o `-` para mantener el anterior.",
+        parse_mode='Markdown'
+    )
 
-function calcAvance() {
-  const prof = parseFloat(document.getElementById('f-prof').value);
-  const ini = parseFloat(document.getElementById('f-ini').value);
-  const el = document.getElementById('f-avance');
-  if (!isNaN(prof) && !isNaN(ini) && prof > ini) {
-    el.value = Math.round(prof - ini);
-  } else {
-    el.value = '';
-  }
-}
-  
-// ─── FORM ────────────────────────────────────────────────────────────────────
-async function guardar() {
-  const msg = document.getElementById('fmsg');
-  const equipo = document.getElementById('f-equipo').value.trim();
-  const pozo = document.getElementById('f-pozo').value.trim();
-  if (!equipo) { msg.className = 'msg err'; msg.textContent = 'El equipo es obligatorio.'; return; }
-  if (!pozo) { msg.className = 'msg err'; msg.textContent = 'El pozo es obligatorio.'; return; }
-  const reg = {
-    fecha: document.getElementById('f-fecha').value,
-    equipo, pozo,
-    operadora: document.getElementById('f-op').value,
-    estado: document.getElementById('f-estado').value,
-    supervisor: document.getElementById('f-sup').value.trim() || currentUser,
-    prof_actual: document.getElementById('f-prof').value || null,
-    ini_turno: document.getElementById('f-ini').value || null,
-    fin_turno: (document.getElementById('f-prof').value && document.getElementById('f-ini').value) ? String(Number(document.getElementById('f-prof').value) - Number(document.getElementById('f-ini').value)) : null,
-    td_plan: document.getElementById('f-td').value || null,
-    trepano_marca: document.getElementById('f-marca').value || null,
-    trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
-    trepano_serial: document.getElementById('f-serial').value.trim() || null,
-    diam: document.getElementById('f-diam').value || null,
-    bha_num: document.getElementById('f-bha').value || null,
-    motor_rss: document.getElementById('f-motor').value.trim() || null,
-    boquillas: document.getElementById('f-boq').value.trim() || null,
-    nota: document.getElementById('f-nota').value.trim() || null,
-  };
-  try {
-    msg.className = 'msg'; msg.textContent = '';
-    await upsertOp(reg);
-    await loadData();
-    msg.className = 'msg ok';
-    msg.textContent = `✓ Guardado: ${equipo} · ${pozo} · ${fmtDate(reg.fecha)}`;
-    setTimeout(() => { msg.className = 'msg'; }, 4000);
-    limpiar();
-  } catch(e) {
-    msg.className = 'msg err';
-    msg.textContent = 'Error al guardar. Verificá la conexión con Supabase.';
-    console.error(e);
-  }
-}
+async def callback_estado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    estado = query.data.replace('st_', '')
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada. Usá /novedad de nuevo.")
+        return
+    state = user_state[user_id]
+    state['estado'] = estado
+    state['step'] = 'prof'
+    prof_hint = f" (último: *{int(state['prof_actual'])} m*)" if state.get('prof_actual') else ""
+    await query.edit_message_text(
+        f"*Paso 3/12* — Profundidad actual (m){prof_hint}\n"
+        f"Escribí el valor o `-` para mantener el anterior.",
+        parse_mode='Markdown'
+    )
 
-function prefillEdit(o) {
-  goTab('cargar');
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-  set('f-fecha', o.fecha); document.getElementById('f-equipo').value = o.equipo || ''; set('f-pozo', o.pozo);
-  document.getElementById('f-op').value = o.operadora || '';
-  document.getElementById('f-estado').value = o.estado || 'perforando';
-  set('f-sup', o.supervisor);
-  set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-td', o.td_plan); if(o.prof_actual && o.ini_turno){ document.getElementById('f-avance').value = Number(o.prof_actual) - Number(o.ini_turno); }
-  document.getElementById('f-marca').value = o.trepano_marca || '';
-  set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
-  document.getElementById('f-diam').value = o.diam || '';
-  set('f-bha', o.bha_num); set('f-motor', o.motor_rss); set('f-boq', o.boquillas); set('f-nota', o.nota);
-}
+async def callback_marca(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada.")
+        return
+    state = user_state[user_id]
+    marca = query.data.replace('marca_', '')
+    marca_labels = {'BH': 'Baker Hughes'}
+    if marca != 'skip':
+        state['trepano_marca'] = marca_labels.get(marca, marca)
+    state['step'] = 'modelo'
+    modelo_hint = ''
+    if state.get('trepano_modelo'):
+        modelo_hint = f"\nÚltimo: *{state['trepano_modelo']}*"
+        if state.get('trepano_serial'):
+            modelo_hint += f" S/N *{state['trepano_serial']}*"
+    await query.edit_message_text(
+        f"*Paso 6/12* — Modelo y Serial del trépano{modelo_hint}\n"
+        f"Escribí: `MODELO SERIAL` (ej: `HVT513 SP5639`)\nO `-` para saltar.",
+        parse_mode='Markdown'
+    )
 
-function limpiar() {
-  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f-equipo').value = '';
-  document.getElementById('f-op').value = '';
-  document.getElementById('f-estado').value = 'perforando';
-  document.getElementById('f-diam').value = '';
-  document.getElementById('f-marca').value = '';
-  document.getElementById('f-sup').value = currentUser;
-}
+async def callback_diametro(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada.")
+        return
+    state = user_state[user_id]
+    diam_key = query.data.replace('diam_', '')
+    if diam_key != 'skip':
+        state['diam'] = DIAM_LABELS.get(diam_key, diam_key + '"')
+    state['step'] = 'bha'
+    await query.edit_message_text(
+        f"*Paso 8/12* — BHA #\nEscribí el número o `-` para saltar.",
+        parse_mode='Markdown'
+    )
 
-async function del(id) {
-  if (!confirm('¿Eliminar este registro?')) return;
-  try {
-    await deleteOp(id);
-    await loadData();
-  } catch(e) { alert('Error al eliminar'); }
-}
+async def callback_sistema(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada.")
+        return
+    state = user_state[user_id]
+    sis = query.data.replace('sis_', '')
+    sis_labels = {'RSS-Standalone': 'RSS Standalone', 'RSS-Motorizado': 'RSS Motorizado'}
+    if sis == 'skip':
+        state['step'] = 'boquillas_n'
+        state['boq_grupos'] = []
+        await query.edit_message_text(
+            f"*Paso 11/12* — Boquillas\nTipo 1 — ¿Cuántas boquillas?",
+            reply_markup=kb_cantidad_boq(0),
+            parse_mode='Markdown'
+        )
+    else:
+        state['motor_rss'] = sis_labels.get(sis, sis)
+        state['step'] = 'motor_detalle'
+        await query.edit_message_text(
+            f"*Paso 10/12* — Detalle del sistema: *{state['motor_rss']}*\n"
+            f"Escribí el detalle (ej: `VorteX 0.7rpg`) o `-` para saltar.",
+            parse_mode='Markdown'
+        )
 
-function exportCSV() {
-  if (!ops.length) { alert('Sin datos'); return; }
-  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
-  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
-  const csv = [headers.join(','), ...ops.map(o => cols.map(k => `"${(o[k] || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `operaciones_${today()}.csv`;
-  a.click();
-}
+async def callback_nboq(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Saltar boquillas"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada.")
+        return
+    state = user_state[user_id]
+    state['step'] = 'nota'
+    await query.edit_message_text(
+        f"*Paso 12/12* — Novedad del día\n"
+        f"Describí la actividad o escribí `-` si no hay novedades adicionales.",
+        parse_mode='Markdown'
+    )
+
+async def callback_bcant(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        return
+    _, tipo_idx, cantidad = query.data.split('.')
+    tipo_idx = int(tipo_idx)
+    cantidad = int(cantidad)
+    await query.edit_message_text(
+        f"🔩 Tipo {tipo_idx+1} — Cantidad: *{cantidad}* — ¿Diámetro (en /32\")?",
+        reply_markup=kb_diam_boq(tipo_idx, cantidad),
+        parse_mode='Markdown'
+    )
+
+async def callback_bdiam(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        return
+    state = user_state[user_id]
+    _, tipo_idx, cantidad, diam = query.data.split('.')
+    tipo_idx = int(tipo_idx)
+    cantidad = int(cantidad)
+    diam = int(diam)
+    state['boq_grupos'].append({'cant': cantidad, 'diam': diam})
+    boq_actual = ' + '.join([f"{g['cant']}x{g['diam']}" for g in state['boq_grupos']])
+    await query.edit_message_text(
+        f"✅ Boquillas hasta ahora: *{boq_actual}*\n\n¿Querés agregar otro tipo?",
+        reply_markup=kb_otro_tipo(tipo_idx + 1),
+        parse_mode='Markdown'
+    )
+
+async def callback_boq_mas(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        return
+    tipo_idx = int(query.data.replace('boq_mas.', ''))
+    await query.edit_message_text(
+        f"🔩 Tipo {tipo_idx+1} — ¿Cuántas boquillas?",
+        reply_markup=kb_cantidad_boq(tipo_idx),
+        parse_mode='Markdown'
+    )
+
+async def callback_boq_fin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    logger.info(f"BOQ_FIN - user_id: {user_id}, in_state: {user_id in user_state}")
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada. Usá /novedad de nuevo.")
+        return
+    state = user_state[user_id]
+    boq_str = ' + '.join([f"{g['cant']}x{g['diam']}" for g in state['boq_grupos']]) if state['boq_grupos'] else '—'
+    state['boquillas'] = boq_str
+    state['step'] = 'nota'
+    await query.edit_message_text(f"✅ Boquillas: *{boq_str}*", parse_mode='Markdown')
+    await query.message.reply_text(
+        "*Paso 12/12* — Novedad del día\n"
+        "Describí la actividad o escribí `-` si no hay novedades adicionales.",
+        parse_mode='Markdown'
+    )
+
+async def mostrar_confirmacion(update, state):
+    equipo = state['equipo']
+    prof = f"{int(state['prof_actual'])} m" if state.get('prof_actual') else '—'
+    ini = f"{int(state['ini_turno'])} m" if state.get('ini_turno') else '—'
+    avance = ''
+    if state.get('prof_actual') and state.get('ini_turno'):
+        try:
+            av = float(state['prof_actual']) - float(state['ini_turno'])
+            avance = f" (+{int(av)} m)"
+        except:
+            pass
+    trepano = ' · '.join(filter(None, [
+        state.get('trepano_marca'),
+        state.get('trepano_modelo'),
+        f"S/N:{state['trepano_serial']}" if state.get('trepano_serial') else '',
+        state.get('diam'),
+    ]))
+    sistema = state.get('motor_rss') or '—'
+    bha = f"BHA #{state['bha_num']}" if state.get('bha_num') else '—'
+    boq = state.get('boquillas') or '—'
+    msg = (
+        f"✅ *Confirmá la novedad*\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🔧 *{equipo}* · {state.get('pozo','—')}\n"
+        f"📊 {ESTADOS_LABEL.get(state.get('estado',''), state.get('estado','—'))}\n"
+        f"📏 Prof: *{prof}*{avance} | Inicio: *{ini}*\n"
+        f"⚙️ {trepano or '—'}\n"
+        f"🔩 {bha} | {sistema} | Boq: {boq}\n"
+        f"📝 _{state.get('nota','—') or '—'}_\n"
+        f"━━━━━━━━━━━━━━━"
+    )
+    keyboard = [[
+        InlineKeyboardButton("✅ Confirmar", callback_data="confirmar"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="cancelar")
+    ]]
+    if hasattr(update, 'message') and update.message:
+        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    else:
+        await update.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+async def callback_confirmar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    if user_id not in user_state:
+        await query.edit_message_text("⚠️ Sesión expirada.")
+        return
+    state = user_state[user_id]
+    fin_turno = None
+    if state.get('prof_actual') and state.get('ini_turno'):
+        try:
+            fin_turno = float(state['prof_actual']) - float(state['ini_turno'])
+        except:
+            pass
+    reg = {
+        'fecha': hoy(),
+        'equipo': state['equipo'],
+        'pozo': state.get('pozo') or None,
+        'estado': state.get('estado', 'perforando'),
+        'supervisor': query.from_user.full_name,
+        'prof_actual': state['prof_actual'] if state.get('prof_actual') != '' else None,
+        'ini_turno': state['ini_turno'] if state.get('ini_turno') != '' else None,
+        'fin_turno': fin_turno,
+        'td_plan': state['td_plan'] if state.get('td_plan') != '' else None,
+        'trepano_marca': state.get('trepano_marca') or None,
+        'trepano_modelo': state.get('trepano_modelo') or None,
+        'trepano_serial': state.get('trepano_serial') or None,
+        'diam': state.get('diam') or None,
+        'bha_num': state.get('bha_num') or None,
+        'motor_rss': state.get('motor_rss') or None,
+        'boquillas': state.get('boquillas') or None,
+        'nota': state.get('nota') or None,
+        'operadora': ctx.user_data.get('operadora') or None,
+    }
+    existing = await sb_get(f"operaciones?fecha=eq.{hoy()}&equipo=eq.{state['equipo']}")
+    if isinstance(existing, list) and existing:
+        await sb_patch(f"operaciones?id=eq.{existing[0]['id']}", reg)
+    else:
+        await sb_post('operaciones', reg)
+    del user_state[user_id]
+    resumen = (
+        f"✅ *Novedad cargada por {query.from_user.first_name}*\n"
+        f"*{reg['equipo']}* · {reg.get('pozo','—')} · {ESTADOS_LABEL.get(reg.get('estado',''), reg.get('estado','—'))}"
+        + (f"\nProf: *{int(reg['prof_actual']):,} m*" if reg.get('prof_actual') else "")
+        + (f"\n_{reg['nota'][:80]}_" if reg.get('nota') else "")
+    )
+    await query.edit_message_text(resumen, parse_mode='Markdown')
+    grupo_id = ctx.user_data.get("grupo_id")
+    if grupo_id:
+        try:
+            await ctx.bot.send_message(chat_id=grupo_id, text=resumen, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"No se pudo postear en grupo {grupo_id}: {e}")
+
+# ─── HANDLER DE MENSAJES DE TEXTO ────────────────────────────────────────────
+async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip() if update.message.text else ""
+
+    # Primero chequear foto_state
+    if user_id in foto_state:
+        state = foto_state[user_id]
+        step = state.get("step")
+        if step == "pozo":
+            if text != "-":
+                state["pozo"] = text
+            state["step"] = "serial"
+            await update.message.reply_text("🔩 ¿Cuál es el serial del trépano? (ej: SP5639)")
+            return
+        elif step == "serial":
+            state["serial"] = text
+            state["step"] = "tipo"
+            await update.message.reply_text(
+                "🔩 ¿Cuál es el modelo del trépano? (ej: HVT513, M1665...)\nEscribí `-` para omitir."
+            )
+            return
+        elif step == "tipo":
+            state["tipo"] = "" if text == "-" else text
+            state["step"] = "fotos"
+            tipo_str = f" · {state['tipo']}" if state['tipo'] else ""
+            await update.message.reply_text(
+                f"✅ Todo listo\n\n📷 *{state['equipo']}* · {state['pozo']} · S/N: *{state['serial']}*{tipo_str}\n\nMandá las fotos una por una. Cuando termines escribí /listo.",
+                parse_mode="Markdown"
+            )
+            return
+
+    # Chequear doc_state
+    if user_id in doc_state:
+        state = doc_state[user_id]
+        if state.get("step") == "descripcion":
+            state["descripcion"] = text
+            state["step"] = "archivos"
+            await update.message.reply_text(
+                f"📄 *{state['equipo']}* — {text}\n\nMandá los archivos (fotos o PDFs) uno por uno. Cuando termines escribí /listodoc.",
+                parse_mode="Markdown"
+            )
+            return
+
+    # Luego chequear user_state
+    if user_id not in user_state:
+        return
+
+    state = user_state[user_id]
+    step = state.get('step')
+
+    if step == 'pozo':
+        if text != '-':
+            state['pozo'] = text
+        state['step'] = 'estado'
+        await update.message.reply_text(
+            "*Paso 2/12* — ¿Qué estado tiene el equipo?",
+            reply_markup=kb_estados(),
+            parse_mode='Markdown'
+        )
+
+    elif step == 'prof':
+        if text != '-':
+            try:
+                state['prof_actual'] = float(text.replace(',', '.').replace(' m', '').replace('m', ''))
+            except:
+                await update.message.reply_text("⚠️ Solo el número en metros. Ej: 5800")
+                return
+        state['step'] = 'ini_turno'
+        ini_hint = f" (último: *{int(state['ini_turno'])} m*)" if state.get('ini_turno') else ""
+        await update.message.reply_text(
+            f"*Paso 4/12* — Prof. inicio de carrera (m){ini_hint}\nEscribí el valor o `-` para saltar.",
+            parse_mode='Markdown'
+        )
+
+    elif step == 'ini_turno':
+        if text != '-':
+            try:
+                state['ini_turno'] = float(text.replace(',', '.').replace(' m', '').replace('m', ''))
+            except:
+                await update.message.reply_text("⚠️ Solo el número en metros o `-` para saltar.")
+                return
+        state['step'] = 'marca'
+        await update.message.reply_text(
+            "*Paso 5/12* — Marca del trépano",
+            reply_markup=kb_marcas(),
+            parse_mode='Markdown'
+        )
+
+    elif step == 'modelo':
+        if text != '-':
+            parts = text.split()
+            state['trepano_modelo'] = parts[0] if parts else ''
+            state['trepano_serial'] = parts[1] if len(parts) > 1 else ''
+        state['step'] = 'diametro'
+        await update.message.reply_text(
+            "*Paso 7/12* — Diámetro del trépano",
+            reply_markup=kb_diametros(),
+            parse_mode='Markdown'
+        )
+
+    elif step == 'bha':
+        if text != '-':
+            try:
+                state['bha_num'] = int(text)
+            except:
+                await update.message.reply_text("⚠️ Solo el número de BHA o `-` para saltar.")
+                return
+        state['step'] = 'sistema'
+        await update.message.reply_text(
+            "*Paso 9/12* — Sistema de dirección",
+            reply_markup=kb_sistema(),
+            parse_mode='Markdown'
+        )
+
+    elif step == 'motor_detalle':
+        if text != '-':
+            base = state.get('motor_rss', '')
+            state['motor_rss'] = f"{base} {text}".strip()
+        state['step'] = 'boquillas_n'
+        state['boq_grupos'] = []
+        await update.message.reply_text(
+            "*Paso 11/12* — Boquillas\nTipo 1 — ¿Cuántas boquillas?",
+            reply_markup=kb_cantidad_boq(0),
+            parse_mode='Markdown'
+        )
+
+    elif step == 'nota':
+        if text != '-':
+            state['nota'] = text
+        state['step'] = 'confirmar'
+        await mostrar_confirmacion(update, state)
+
+# ─── FOTOS ────────────────────────────────────────────────────────────────────
+async def cmd_foto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    operadora = GRUPO_OPERADORA.get(chat_id) or ctx.user_data.get("operadora")
+    if not operadora:
+        await update.message.reply_text("⚠️ Usá /foto desde el grupo de tu operadora.")
+        return
+    equipos = await get_equipos_operadora(operadora)
+    if not equipos:
+        await update.message.reply_text("No hay equipos activos.")
+        return
+    keyboard = []
+    row = []
+    for e in equipos:
+        nombre = e["nombre"]
+        row.append(InlineKeyboardButton(nombre, callback_data=f"feq_{nombre}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    ctx.user_data["operadora"] = operadora
+    if update.effective_chat.type != "private":
+        ctx.user_data["grupo_id"] = chat_id
+        try:
+            await ctx.bot.send_message(
+                chat_id=user_id,
+                text="📷 *Fotos de trépano* — ¿De qué equipo?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            await update.message.reply_text(f"📲 {update.effective_user.first_name}, te mandé el formulario por privado.")
+        except:
+            await update.message.reply_text("⚠️ Primero escribile `/start` al bot en privado.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            "📷 *Fotos de trépano* — ¿De qué equipo?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+
+async def cmd_listo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in foto_state or not foto_state[user_id].get("fotos"):
+        await update.message.reply_text("⚠️ No hay fotos cargadas. Usá /foto para empezar.")
+        return
+    state = foto_state[user_id]
+    n = len(state["fotos"])
+    serial = state.get("serial", "—")
+    pozo = state.get("pozo", "—")
+    equipo = state.get("equipo", "—")
+    tipo = state.get("tipo", "")
+    tipo_str = f" · {tipo}" if tipo else ""
+    resumen = f"✅ *{n} foto{'s' if n>1 else ''} guardada{'s' if n>1 else ''}*\nS/N: *{serial}* · {pozo} · {equipo}{tipo_str}"
+    await update.message.reply_text(resumen, parse_mode="Markdown")
+    grupo_id = ctx.user_data.get("grupo_id")
+    if grupo_id:
+        try:
+            await ctx.bot.send_message(chat_id=grupo_id, text=resumen, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"No se pudo postear en grupo: {e}")
+    del foto_state[user_id]
+
+async def callback_foto_equipo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    equipo = query.data.replace("feq_", "")
+    ultimo = await get_ultimo_registro(equipo)
+    pozo_prev = ultimo.get("pozo", "") if ultimo else ""
+    foto_state[user_id] = {"equipo": equipo, "pozo": pozo_prev, "serial": "", "fotos": [], "step": "pozo"}
+    pozo_hint = f" (último: *{pozo_prev}*)" if pozo_prev else ""
+    await query.edit_message_text(
+        f"📷 *{equipo}* — ¿En qué pozo fue la carrera?{pozo_hint}\nEscribí el pozo o `-` para mantener el anterior.",
+        parse_mode="Markdown"
+    )
+
+async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in foto_state or foto_state[user_id].get("step") != "fotos":
+        return
+    state = foto_state[user_id]
+    photo = update.message.photo[-1]
+    file = await ctx.bot.get_file(photo.file_id)
+    file_bytes = await file.download_as_bytearray()
+    n = len(state["fotos"]) + 1
+    path = f"{state['serial']}/{state['pozo']}/{state['equipo']}/foto_{n}.jpg"
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            f"{SUPABASE_URL}/storage/v1/object/Trepanos/{path}",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "image/jpeg",
+            },
+            content=bytes(file_bytes)
+        )
+    if r.status_code in (200, 201):
+        url = f"{SUPABASE_URL}/storage/v1/object/public/Trepanos/{path}"
+        await sb_post("fotos_trepano", {
+            "fecha": hoy(),
+            "equipo": state["equipo"],
+            "pozo": state["pozo"],
+            "serial": state["serial"],
+            "tipo": state.get("tipo", ""),
+            "storage_path": path,
+            "url": url,
+            "subida_por": update.effective_user.full_name,
+        })
+        state["fotos"].append(url)
+        await update.message.reply_text(f"📷 Foto {n} guardada. Mandá más o escribí /listo para terminar.")
+    else:
+        await update.message.reply_text("⚠️ Error al subir la foto. Intentá de nuevo.")
 
 
-// ─── FOTOS ────────────────────────────────────────────────────────────────────
-let fotosData = [];
+# ─── DOCUMENTOS ───────────────────────────────────────────────────────────────
+async def cmd_doc(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    operadora = GRUPO_OPERADORA.get(chat_id) or ctx.user_data.get("operadora")
+    if not operadora:
+        await update.message.reply_text("⚠️ Usá /doc desde el grupo de tu operadora.")
+        return
+    equipos = await get_equipos_operadora(operadora)
+    if not equipos:
+        await update.message.reply_text("No hay equipos activos.")
+        return
+    keyboard = []
+    row = []
+    for e in equipos:
+        nombre = e["nombre"]
+        row.append(InlineKeyboardButton(nombre, callback_data=f"deq_{nombre}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    ctx.user_data["operadora"] = operadora
+    if update.effective_chat.type != "private":
+        ctx.user_data["grupo_id"] = chat_id
+        try:
+            await ctx.bot.send_message(
+                chat_id=user_id,
+                text="📄 *Subir documento* — ¿De qué equipo?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            await update.message.reply_text(f"📲 {update.effective_user.first_name}, te mandé el formulario por privado.")
+        except:
+            await update.message.reply_text("⚠️ Primero escribile `/start` al bot en privado.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            "📄 *Subir documento* — ¿De qué equipo?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
-async function loadFotos() {
-  try {
-    fotosData = await sbFetch('GET', 'fotos_trepano?order=created_at.desc') || [];
-  } catch(e) { fotosData = []; }
-}
+async def cmd_listodoc(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in doc_state or not doc_state[user_id].get("archivos"):
+        await update.message.reply_text("⚠️ No hay documentos cargados. Usá /doc para empezar.")
+        return
+    state = doc_state[user_id]
+    n = len(state["archivos"])
+    resumen = (
+        f"✅ *{n} documento{'s' if n>1 else ''} guardado{'s' if n>1 else ''}*\n"
+        f"📄 {state.get('descripcion', '—')} · {state['equipo']} · {state.get('operadora', '—')}"
+    )
+    await update.message.reply_text(resumen, parse_mode="Markdown")
+    grupo_id = ctx.user_data.get("grupo_id")
+    if grupo_id:
+        try:
+            await ctx.bot.send_message(chat_id=grupo_id, text=resumen, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"No se pudo postear en grupo: {e}")
+    del doc_state[user_id]
 
-let lightboxUrls = [];
-let lightboxIdx = 0;
-const grupoUrls = {};
+async def callback_doc_equipo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    equipo = query.data.replace("deq_", "")
+    operadora = ctx.user_data.get("operadora", "")
+    doc_state[user_id] = {"equipo": equipo, "operadora": operadora, "descripcion": "", "archivos": [], "step": "descripcion"}
+    await query.edit_message_text(
+        f"📄 *{equipo}* — ¿Qué describe este documentos?\n(ej: Remito SP4138, Remito SP4138 SP5201 SP6033...)",
+        parse_mode="Markdown"
+    )
 
-function openLightbox(grupoKey, idx) {
-  lightboxUrls = grupoUrls[grupoKey] || [];
-  lightboxIdx = idx;
-  if (!lightboxUrls.length) return;
-  const lb = document.getElementById('lightbox');
-  document.getElementById('lb-img').src = lightboxUrls[idx];
-  lb.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('open');
-  document.body.style.overflow = '';
-}
-function lbPrev() {
-  lightboxIdx = (lightboxIdx - 1 + lightboxUrls.length) % lightboxUrls.length;
-  document.getElementById('lb-img').src = lightboxUrls[lightboxIdx];
-}
-function lbNext() {
-  lightboxIdx = (lightboxIdx + 1) % lightboxUrls.length;
-  document.getElementById('lb-img').src = lightboxUrls[lightboxIdx];
-}
-document.addEventListener('keydown', e => {
-  if (!document.getElementById('lightbox').classList.contains('open')) return;
-  if (e.key === 'ArrowLeft') lbPrev();
-  if (e.key === 'ArrowRight') lbNext();
-  if (e.key === 'Escape') closeLightbox();
-});
+async def handle_document_upload(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Maneja documentos (PDF/imagen) en el flujo /doc."""
+    user_id = update.effective_user.id
+    if user_id not in doc_state or doc_state[user_id].get("step") != "archivos":
+        return
+    state = doc_state[user_id]
+    n = len(state["archivos"]) + 1
+    fecha = hoy()
+    if update.message.document:
+        doc = update.message.document
+        if doc.mime_type not in ("application/pdf", "image/jpeg", "image/png"):
+            await update.message.reply_text("⚠️ Solo se aceptan PDF, JPG o PNG.")
+            return
+        file_obj = await ctx.bot.get_file(doc.file_id)
+        file_bytes = await file_obj.download_as_bytearray()
+        ext = "pdf" if doc.mime_type == "application/pdf" else doc.mime_type.split("/")[1]
+        content_type = doc.mime_type
+    else:
+        return
+    desc_slug = state["descripcion"].replace(" ", "_")[:30]
+    path = f"{state['operadora']}/{state['equipo']}/{fecha}_{desc_slug}_{n}.{ext}"
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            f"{SUPABASE_URL}/storage/v1/object/Documentos/{path}",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": content_type,
+            },
+            content=bytes(file_bytes)
+        )
+    if r.status_code in (200, 201):
+        url = f"{SUPABASE_URL}/storage/v1/object/public/Documentos/{path}"
+        await sb_post("documentos", {
+            "fecha": fecha,
+            "operadora": state["operadora"],
+            "equipo": state["equipo"],
+            "descripcion": state["descripcion"],
+            "tipo_archivo": ext,
+            "storage_path": path,
+            "url": url,
+            "subida_por": update.effective_user.full_name,
+        })
+        state["archivos"].append(url)
+        await update.message.reply_text(
+            f"📄 Archivo {n} guardado. Mandá más o escribí /listodoc para terminar."
+        )
+    else:
+        await update.message.reply_text("⚠️ Error al subir el archivo. Intentá de nuevo.")
 
-function renderFotos() {
-  const serialF = (document.getElementById('ff-serial').value || '').toLowerCase();
-  const pozoF   = (document.getElementById('ff-pozo').value || '').toLowerCase();
-  const equipoF = (document.getElementById('ff-equipo').value || '').toLowerCase();
-  const tipoF   = (document.getElementById('ff-tipo').value || '').toLowerCase();
-  const loading = document.getElementById('loading-fotos');
-  const grid    = document.getElementById('fotos-grid');
-  loading.style.display = 'none';
-  grid.style.display    = 'block';
+async def handle_photo_or_doc(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Despacha fotos al handler correcto según estado activo."""
+    user_id = update.effective_user.id
+    if user_id in doc_state and doc_state[user_id].get("step") == "archivos":
+        # Foto enviada en contexto de doc: tratarla como imagen
+        state = doc_state[user_id]
+        n = len(state["archivos"]) + 1
+        fecha = hoy()
+        file_obj = await ctx.bot.get_file(update.message.photo[-1].file_id)
+        file_bytes = await file_obj.download_as_bytearray()
+        desc_slug = state["descripcion"].replace(" ", "_")[:30]
+        path = f"{state['operadora']}/{state['equipo']}/{fecha}_{desc_slug}_{n}.jpg"
+        async with httpx.AsyncClient() as c:
+            r = await c.post(
+                f"{SUPABASE_URL}/storage/v1/object/Documentos/{path}",
+                headers={
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}",
+                    "Content-Type": "image/jpeg",
+                },
+                content=bytes(file_bytes)
+            )
+        if r.status_code in (200, 201):
+            url = f"{SUPABASE_URL}/storage/v1/object/public/Documentos/{path}"
+            await sb_post("documentos", {
+                "fecha": fecha,
+                "operadora": state["operadora"],
+                "equipo": state["equipo"],
+                "descripcion": state["descripcion"],
+                "tipo_archivo": "jpg",
+                "storage_path": path,
+                "url": url,
+                "subida_por": update.effective_user.full_name,
+            })
+            state["archivos"].append(url)
+            await update.message.reply_text(
+                f"📄 Archivo {n} guardado. Mandá más o escribí /listodoc para terminar."
+            )
+        else:
+            await update.message.reply_text("⚠️ Error al subir la foto. Intentá de nuevo.")
+    else:
+        await handle_photo(update, ctx)
 
-  let filtered = fotosData.filter(f => {
-    if (serialF && !(f.serial || '').toLowerCase().includes(serialF)) return false;
-    if (pozoF   && !(f.pozo   || '').toLowerCase().includes(pozoF))   return false;
-    if (equipoF && !(f.equipo || '').toLowerCase().includes(equipoF)) return false;
-    if (tipoF   && !(f.tipo   || '').toLowerCase().includes(tipoF))   return false;
-    return true;
-  });
+# ─── HEALTH SERVER ────────────────────────────────────────────────────────────
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'OK')
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
+    def log_message(self, format, *args):
+        pass
 
-  if (!filtered.length) {
-    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3)">Sin fotos encontradas</div>';
-    return;
-  }
+def run_health_server():
+    port = int(os.environ.get('PORT', 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthHandler)
+    server.serve_forever()
 
-  // Agrupar por serial + pozo
-  const grupos = {};
-  filtered.forEach(f => {
-    const key = `${f.serial}|${f.pozo}|${f.equipo}`;
-    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, tipo: f.tipo, fecha: f.fecha, fotos: [] };
-    grupos[key].fotos.push(f);
-  });
+# ─── MAIN ─────────────────────────────────────────────────────────────────────
+def main():
+    threading.Thread(target=run_health_server, daemon=True).start()
+    logger.info("Bot iniciado...")
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler('start', cmd_start))
+    app.add_handler(CommandHandler('ayuda', cmd_ayuda))
+    app.add_handler(CommandHandler('cancelar', cmd_cancelar))
+    app.add_handler(CommandHandler('novedad', cmd_novedad))
+    app.add_handler(CommandHandler('faltantes', cmd_faltantes))
+    app.add_handler(CommandHandler('resumen', cmd_resumen))
+    app.add_handler(CommandHandler('foto', cmd_foto))
+    app.add_handler(CommandHandler('listo', cmd_listo))
+    app.add_handler(CommandHandler('doc', cmd_doc))
+    app.add_handler(CommandHandler('listodoc', cmd_listodoc))
+    app.add_handler(CallbackQueryHandler(callback_equipo, pattern='^eq_'))
+    app.add_handler(CallbackQueryHandler(callback_reemplazar, pattern='^repl_'))
+    app.add_handler(CallbackQueryHandler(callback_cancelar, pattern='^cancelar$'))
+    app.add_handler(CallbackQueryHandler(callback_estado, pattern='^st_'))
+    app.add_handler(CallbackQueryHandler(callback_marca, pattern='^marca_'))
+    app.add_handler(CallbackQueryHandler(callback_diametro, pattern='^diam_'))
+    app.add_handler(CallbackQueryHandler(callback_sistema, pattern='^sis_'))
+    app.add_handler(CallbackQueryHandler(callback_nboq, pattern='^nboq_'))
+    app.add_handler(CallbackQueryHandler(callback_bcant, pattern='^bcant\\.'))
+    app.add_handler(CallbackQueryHandler(callback_bdiam, pattern='^bdiam\\.'))
+    app.add_handler(CallbackQueryHandler(callback_boq_mas, pattern='^boq_mas\\.'))
+    app.add_handler(CallbackQueryHandler(callback_boq_fin, pattern='^boq_fin$'))
+    app.add_handler(CallbackQueryHandler(callback_confirmar, pattern='^confirmar$'))
+    app.add_handler(CallbackQueryHandler(callback_foto_equipo, pattern='^feq_'))
+    app.add_handler(CallbackQueryHandler(callback_doc_equipo, pattern='^deq_'))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo_or_doc))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document_upload))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.run_polling(drop_pending_updates=False, stop_signals=None)
 
-  const grupoKeys = {};
-  grid.innerHTML = Object.values(grupos).map((g, gi) => {
-    const gKey = `grupo_${gi}`;
-    grupoUrls[gKey] = g.fotos.map(f => f.url);
-    const cards = g.fotos.map((f, i) => `
-      <div class="foto-card" id="fcard-${f.id}">
-        <img src="${f.url}" loading="lazy" onclick="openLightbox('${gKey}', ${i})" alt="Foto ${i+1}" style="cursor:zoom-in">
-        <div class="foto-meta">
-          <div class="foto-info">${f.subida_por || ''} · ${f.fecha || ''}</div>
-          <button class="btn-foto-del" onclick="document.getElementById('fconf-${f.id}').classList.add('show')" title="Borrar foto">✕</button>
-        </div>
-        <div class="del-confirm" id="fconf-${f.id}">
-          <div style="font-size:12px;color:var(--text2);text-align:center;padding:0 12px">¿Borrar esta foto?<br>Esta acción no se puede deshacer.</div>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <button class="btn btn-danger btn-sm" onclick="deleteFoto('${f.id}','${f.storage_path}')">Sí, borrar</button>
-            <button class="btn btn-sm" onclick="document.getElementById('fconf-${f.id}').classList.remove('show')">Cancelar</button>
-          </div>
-        </div>
-      </div>`).join('');
-    return `<div class="foto-group">
-      <div class="foto-group-title">
-        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}</span>
-        <span style="font-size:11px;color:var(--text3)">${g.fotos.length} foto${g.fotos.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div class="fotos-grid">${cards}</div>
-    </div>`;
-  }).join('');
-}
-
-async function deleteFoto(id, storagePath) {
-  try {
-    // Borrar de la tabla
-    await sbFetch('DELETE', `fotos_trepano?id=eq.${id}`);
-    // Borrar del storage
-    await fetch(`${SUPABASE_URL}/storage/v1/object/Trepanos/${storagePath}`, {
-      method: 'DELETE',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      }
-    });
-    await loadFotos();
-    renderFotos();
-  } catch(e) {
-    alert('Error al borrar la foto.');
-    console.error(e);
-  }
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function openModal(o) {
-  const estados = {perforando:'Perforando',entubando:'Entubando',aislacion:'Aislación','armando-bha':'Armando BHA',dtm:'DTM','tiempo-muerto':'Tiempo muerto','bajando-herramienta':'Bajando HTA','sacando-herramienta':'Sacando HTA',walking:'Walking','monta-equipo':'Monta Equipo','controla-pozo':'Controla Pozo','parado-por-problemas':'Problema',terminado:'Terminado/TD'};
-  const avance = (o.prof_actual && o.ini_turno) ? `+${Number(o.prof_actual) - Number(o.ini_turno)} m` : '—';
-  document.getElementById('modal-title').textContent = `${o.equipo} · ${o.pozo || '—'}`;
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-row"><span class="modal-label">Fecha</span><span class="modal-val">${o.fecha || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Operadora</span><span class="modal-val">${o.operadora || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Estado</span><span class="modal-val">${estados[o.estado] || o.estado || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Supervisor</span><span class="modal-val">${o.supervisor || '—'}</span></div>
-    <hr class="modal-sep">
-    <div class="modal-row"><span class="modal-label">Prof. actual</span><span class="modal-val">${o.prof_actual ? Number(o.prof_actual).toLocaleString() + ' m' : '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Inicio carrera</span><span class="modal-val">${o.ini_turno ? Number(o.ini_turno).toLocaleString() + ' m' : '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Avance</span><span class="modal-val">${avance}</span></div>
-    <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${o.td_plan ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
-    <hr class="modal-sep">
-    <div class="modal-row"><span class="modal-label">Marca</span><span class="modal-val">${o.trepano_marca || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Modelo</span><span class="modal-val">${o.trepano_modelo || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Serial</span><span class="modal-val">${o.trepano_serial || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Diámetro</span><span class="modal-val">${o.diam || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">BHA #</span><span class="modal-val">${o.bha_num || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Motor / RSS</span><span class="modal-val">${o.motor_rss || '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Boquillas</span><span class="modal-val">${o.boquillas || '—'}</span></div>
-    ${o.nota ? `<hr class="modal-sep"><div class="modal-label" style="margin-bottom:6px">Novedad</div><div class="modal-nota">${o.nota.replace(/\n/g,'<br>')}</div>` : ''}
-  `;
-  document.getElementById('modal-overlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function goTab(t) {
-  document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', ['tablero','cargar','historial','admin','fotos','docs'][i] === t);
-  });
-  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + t).classList.add('active');
-  if (t === 'tablero') { renderBoard(); }
-  if (t === 'historial') { renderHist(); }
-  if (t === 'admin') { renderEquipos(); }
-  if (t === 'fotos') { renderFotos(); }
-  if (t === 'docs') { renderDocs(); }
-}
-
-// ─── DOCUMENTOS ──────────────────────────────────────────────────────────────
-let docsData = [];
-
-async function loadDocs() {
-  try {
-    docsData = await sbFetch('GET', 'documentos?order=created_at.desc') || [];
-  } catch(e) { docsData = []; }
-  const loading = document.getElementById('loading-docs');
-  const grid    = document.getElementById('docs-grid');
-  if (loading) { loading.style.display = 'none'; grid.style.display = 'block'; }
-}
-
-function renderDocs() {
-  const opF    = (document.getElementById('fd-operadora').value || '').toLowerCase();
-  const eqF    = (document.getElementById('fd-equipo').value || '').toLowerCase();
-  const descF  = (document.getElementById('fd-descripcion').value || '').toLowerCase();
-  const fechaF = document.getElementById('fd-fecha').value || '';
-  const loading = document.getElementById('loading-docs');
-  const grid    = document.getElementById('docs-grid');
-  loading.style.display = 'none';
-  grid.style.display    = 'block';
-
-  let filtered = docsData.filter(d => {
-    if (opF   && !(d.operadora   || '').toLowerCase().includes(opF))   return false;
-    if (eqF   && !(d.equipo      || '').toLowerCase().includes(eqF))   return false;
-    if (descF && !(d.descripcion || '').toLowerCase().includes(descF)) return false;
-    if (fechaF && d.fecha !== fechaF) return false;
-    return true;
-  });
-
-  if (!filtered.length) {
-    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3)">Sin documentos encontrados</div>';
-    return;
-  }
-
-  // Agrupar por operadora → equipo
-  const grupos = {};
-  filtered.forEach(d => {
-    const opKey = d.operadora || '—';
-    const eqKey = d.equipo || '—';
-    if (!grupos[opKey]) grupos[opKey] = {};
-    if (!grupos[opKey][eqKey]) grupos[opKey][eqKey] = [];
-    grupos[opKey][eqKey].push(d);
-  });
-
-  grid.innerHTML = Object.entries(grupos).map(([op, equiposObj]) => {
-    const equiposHtml = Object.entries(equiposObj).map(([eq, docs]) => {
-      const items = docs.map(d => {
-        const esPDF = d.tipo_archivo === 'pdf';
-        const fecha = d.fecha || '';
-        const subido = d.subida_por || '';
-        const preview = esPDF
-          ? `<a href="${d.url}" target="_blank" class="btn btn-sm" style="font-size:11px;padding:3px 10px;display:inline-block;margin-top:8px">Abrir PDF ↗</a>`
-          : `<img src="${d.url}" loading="lazy" onclick="window.open('${d.url}','_blank')" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:zoom-in;border-radius:var(--r);margin-top:8px">`;
-        return `<div class="foto-card" style="padding:10px">
-          <div style="font-size:13px;font-weight:500">${esPDF ? '📄' : '🖼️'} ${d.descripcion || '—'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">${fecha}${subido ? ' · ' + subido : ''}</div>
-          ${preview}
-        </div>`;
-      }).join('');
-      return `<div style="margin-bottom:16px">
-        <div class="foto-group-title">
-          <span>🔧 ${eq}</span>
-          <span style="font-size:11px;color:var(--text3)">${docs.length} doc${docs.length !== 1 ? 's' : ''}</span>
-        </div>
-        <div class="fotos-grid">${items}</div>
-      </div>`;
-    }).join('');
-
-    return `<div style="margin-bottom:24px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);padding-bottom:6px;margin-bottom:10px;border-bottom:2px solid var(--border)">${op}</div>
-      ${equiposHtml}
-    </div>`;
-  }).join('');
-}
-
-// ─── EQUIPOS ─────────────────────────────────────────────────────────────────
-let equipos = [];
-
-async function loadEquipos() {
-  try {
-    equipos = await sbFetch('GET', 'equipos?order=nombre.asc') || [];
-  } catch(e) { equipos = []; }
-  fillEquipoSelect();
-}
-
-function fillEquipoSelect() {
-  const sel = document.getElementById('f-equipo');
-  const val = sel.value;
-  sel.innerHTML = '<option value="">Seleccionar equipo...</option>';
-  equipos.filter(e => e.activo).forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.nombre;
-    opt.textContent = e.nombre + (e.operadora ? ' · ' + e.operadora : '');
-    sel.appendChild(opt);
-  });
-  if (val) sel.value = val;
-}
-
-function renderEquipos() {
-  const list = document.getElementById('equipos-list');
-  if (!equipos.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">No hay equipos cargados. Agregá el primero arriba.</div>'; return; }
-  list.innerHTML = equipos.map(e => `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <span style="font-family:var(--mono);font-size:13px;font-weight:500;min-width:100px">${e.nombre}</span>
-      <span style="font-size:12px;color:var(--text2)">${e.operadora || '—'}</span>
-      <span class="badge ${e.activo ? 'b-perforando' : 'b-terminado'}" style="margin-left:4px">${e.activo ? 'Activo' : 'Inactivo'}</span>
-      <button class="btn btn-sm" style="margin-left:auto" onclick="toggleEquipo('${e.id}', ${e.activo})">${e.activo ? 'Desactivar' : 'Activar'}</button>
-      <button class="btn btn-danger btn-sm" onclick="eliminarEquipo('${e.id}')">✕</button>
-    </div>`).join('');
-}
-
-async function agregarEquipo() {
-  const msg = document.getElementById('admin-msg');
-  const nombre = document.getElementById('adm-nombre').value.trim().toUpperCase();
-  const op = document.getElementById('adm-op').value;
-  if (!nombre) { msg.className = 'msg err'; msg.textContent = 'Ingresá el nombre del equipo.'; return; }
-  try {
-    await sbFetch('POST', 'equipos', { nombre, operadora: op || null, activo: true });
-    await loadEquipos();
-    renderEquipos();
-    document.getElementById('adm-nombre').value = '';
-    document.getElementById('adm-op').value = '';
-    msg.className = 'msg ok'; msg.textContent = `✓ Equipo ${nombre} agregado.`;
-    setTimeout(() => { msg.className = 'msg'; }, 3000);
-  } catch(e) {
-    msg.className = 'msg err'; msg.textContent = 'Error al agregar. ¿Ya existe ese equipo?';
-  }
-}
-
-async function toggleEquipo(id, activo) {
-  try {
-    await sbFetch('PATCH', `equipos?id=eq.${id}`, { activo: !activo });
-    await loadEquipos();
-    renderEquipos();
-  } catch(e) { alert('Error al actualizar'); }
-}
-
-async function eliminarEquipo(id) {
-  if (!confirm('¿Eliminar este equipo?')) return;
-  try {
-    await sbFetch('DELETE', `equipos?id=eq.${id}`);
-    await loadEquipos();
-    renderEquipos();
-  } catch(e) { alert('Error al eliminar'); }
-}
-
-// ─── INIT ────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('ops_user');
-  if (saved) { currentUser = saved; showApp(); }
-  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-});
-</script>
-</body>
-</html>
+if __name__ == '__main__':
+    main()
