@@ -417,6 +417,7 @@
       <div class="hist-filters">
         <input type="text" id="fd-operadora" placeholder="Operadora..." oninput="renderDocs()" style="width:140px">
         <input type="text" id="fd-equipo" placeholder="Equipo..." oninput="renderDocs()" style="width:130px">
+        <input type="text" id="fd-pozo" placeholder="Pozo..." oninput="renderDocs()" style="width:120px">
         <input type="text" id="fd-descripcion" placeholder="Descripción / serial..." oninput="renderDocs()" style="width:200px">
         <input type="date" id="fd-fecha" oninput="renderDocs()" style="width:140px">
       </div>
@@ -972,6 +973,7 @@ async function loadDocs() {
 function renderDocs() {
   const opF    = (document.getElementById('fd-operadora').value || '').toLowerCase();
   const eqF    = (document.getElementById('fd-equipo').value || '').toLowerCase();
+  const pozoF  = (document.getElementById('fd-pozo').value || '').toLowerCase();
   const descF  = (document.getElementById('fd-descripcion').value || '').toLowerCase();
   const fechaF = document.getElementById('fd-fecha').value || '';
   const loading = document.getElementById('loading-docs');
@@ -982,6 +984,7 @@ function renderDocs() {
   let filtered = docsData.filter(d => {
     if (opF   && !(d.operadora   || '').toLowerCase().includes(opF))   return false;
     if (eqF   && !(d.equipo      || '').toLowerCase().includes(eqF))   return false;
+    if (pozoF && !(d.pozo        || '').toLowerCase().includes(pozoF)) return false;
     if (descF && !(d.descripcion || '').toLowerCase().includes(descF)) return false;
     if (fechaF && d.fecha !== fechaF) return false;
     return true;
@@ -1013,7 +1016,7 @@ function renderDocs() {
           : `<img src="${d.url}" loading="lazy" onclick="window.open('${d.url}','_blank')" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:zoom-in;border-radius:var(--r);margin-top:8px">`;
         return `<div class="foto-card" style="padding:10px">
           <div style="font-size:13px;font-weight:500">${esPDF ? '📄' : '🖼️'} ${d.descripcion || '—'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">${fecha}${subido ? ' · ' + subido : ''}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${d.pozo ? '📍 ' + d.pozo + ' · ' : ''}${fecha}${subido ? ' · ' + subido : ''}</div>
           ${preview}
         </div>`;
       }).join('');
