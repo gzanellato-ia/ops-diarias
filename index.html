@@ -573,7 +573,7 @@ async function loadData() {
 }
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
-function today() { return new Date().toISOString().split('T')[0]; }
+function today() { return new Date().toLocaleString('sv-SE', {timeZone: 'America/Argentina/Buenos_Aires'}).split(' ')[0]; }
 function toISO(d) { return d.toISOString().split('T')[0]; }
 function fmtDate(s) {
   if (!s) return '—';
