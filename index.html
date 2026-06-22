@@ -512,10 +512,8 @@ async function getAllOps() {
 }
 
 async function upsertOp(reg) {
-  const existing = await sbFetch('GET', `operaciones?fecha=eq.${reg.fecha}&equipo=eq.${encodeURIComponent(reg.equipo)}`);
-  if (existing && existing.length > 0) {
-    const id = existing[0].id;
-    return sbFetch('PATCH', `operaciones?id=eq.${id}`, reg);
+  if (editingId) {
+    return sbFetch('PATCH', `operaciones?id=eq.${editingId}`, reg);
   } else {
     return sbFetch('POST', 'operaciones', reg);
   }
@@ -563,6 +561,7 @@ function showApp() {
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 let ops = [];
 let viewDate = '';
+let editingId = null; // id del registro que se está editando (null = nuevo)
 
 async function loadData() {
   try {
@@ -752,6 +751,7 @@ async function guardar() {
 }
 
 function prefillEdit(o) {
+  editingId = o.id;
   goTab('cargar');
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
   set('f-fecha', o.fecha); document.getElementById('f-equipo').value = o.equipo || ''; set('f-pozo', o.pozo);
@@ -766,6 +766,7 @@ function prefillEdit(o) {
 }
 
 function limpiar() {
+  editingId = null;
   ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-equipo').value = '';
   document.getElementById('f-op').value = '';
