@@ -408,6 +408,15 @@
         <input type="text" id="ff-serial" placeholder="Serial..." oninput="renderFotos()" style="width:140px">
         <input type="text" id="ff-pozo" placeholder="Pozo..." oninput="renderFotos()" style="width:140px">
         <input type="text" id="ff-equipo" placeholder="Equipo..." oninput="renderFotos()" style="width:130px">
+        <select id="ff-marca" onchange="renderFotos()" style="width:150px">
+          <option value="">Marca...</option>
+          <option>SLB</option>
+          <option>Baker Hughes</option>
+          <option>Ulterra</option>
+          <option>Halliburton</option>
+          <option>NOV</option>
+          <option>Otra</option>
+        </select>
         <input type="text" id="ff-tipo" placeholder="Modelo (HVT513...)" oninput="renderFotos()" style="width:150px">
       </div>
       <div id="loading-fotos" class="loading"><div class="spinner"></div>Cargando...</div>
@@ -841,6 +850,7 @@ function renderFotos() {
   const serialF = (document.getElementById('ff-serial').value || '').toLowerCase();
   const pozoF   = (document.getElementById('ff-pozo').value || '').toLowerCase();
   const equipoF = (document.getElementById('ff-equipo').value || '').toLowerCase();
+  const marcaF  = (document.getElementById('ff-marca').value || '').toLowerCase();
   const tipoF   = (document.getElementById('ff-tipo').value || '').toLowerCase();
   const loading = document.getElementById('loading-fotos');
   const grid    = document.getElementById('fotos-grid');
@@ -851,6 +861,7 @@ function renderFotos() {
     if (serialF && !(f.serial || '').toLowerCase().includes(serialF)) return false;
     if (pozoF   && !(f.pozo   || '').toLowerCase().includes(pozoF))   return false;
     if (equipoF && !(f.equipo || '').toLowerCase().includes(equipoF)) return false;
+    if (marcaF  && (f.marca   || '').toLowerCase() !== marcaF)        return false;
     if (tipoF   && !(f.tipo   || '').toLowerCase().includes(tipoF))   return false;
     return true;
   });
@@ -864,7 +875,7 @@ function renderFotos() {
   const grupos = {};
   filtered.forEach(f => {
     const key = `${f.serial}|${f.pozo}|${f.equipo}`;
-    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, tipo: f.tipo, fecha: f.fecha, fotos: [] };
+    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, marca: f.marca, tipo: f.tipo, fecha: f.fecha, fotos: [] };
     grupos[key].fotos.push(f);
   });
 
@@ -889,7 +900,7 @@ function renderFotos() {
       </div>`).join('');
     return `<div class="foto-group">
       <div class="foto-group-title">
-        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}</span>
+        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.marca ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.marca + '</span>' : ''}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}</span>
         <span style="font-size:11px;color:var(--text3)">${g.fotos.length} foto${g.fotos.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="fotos-grid">${cards}</div>
