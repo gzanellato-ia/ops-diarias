@@ -417,6 +417,21 @@
           <option>NOV</option>
           <option>Otra</option>
         </select>
+        <select id="ff-diam" onchange="renderFotos()" style="width:120px">
+          <option value="">Diámetro...</option>
+          <option value='6"'>6"</option>
+          <option value='6.125"'>6.125"</option>
+          <option value='6¾"'>6¾"</option>
+          <option value='8½"'>8½"</option>
+          <option value='8.75"'>8.75"</option>
+          <option value='9.875"'>9.875"</option>
+          <option value='11.875"'>11.875"</option>
+          <option value='12¼"'>12¼"</option>
+          <option value='13½"'>13½"</option>
+          <option value='16"'>16"</option>
+          <option value='17½"'>17½"</option>
+          <option value='26"'>26"</option>
+        </select>
         <input type="text" id="ff-tipo" placeholder="Modelo (HVT513...)" oninput="renderFotos()" style="width:150px">
       </div>
       <div id="loading-fotos" class="loading"><div class="spinner"></div>Cargando...</div>
@@ -851,6 +866,7 @@ function renderFotos() {
   const pozoF   = (document.getElementById('ff-pozo').value || '').toLowerCase();
   const equipoF = (document.getElementById('ff-equipo').value || '').toLowerCase();
   const marcaF  = (document.getElementById('ff-marca').value || '').toLowerCase();
+  const diamF   = document.getElementById('ff-diam').value || '';
   const tipoF   = (document.getElementById('ff-tipo').value || '').toLowerCase();
   const loading = document.getElementById('loading-fotos');
   const grid    = document.getElementById('fotos-grid');
@@ -862,6 +878,7 @@ function renderFotos() {
     if (pozoF   && !(f.pozo   || '').toLowerCase().includes(pozoF))   return false;
     if (equipoF && !(f.equipo || '').toLowerCase().includes(equipoF)) return false;
     if (marcaF  && (f.marca   || '').toLowerCase() !== marcaF)        return false;
+    if (diamF   && (f.diam    || '') !== diamF)                       return false;
     if (tipoF   && !(f.tipo   || '').toLowerCase().includes(tipoF))   return false;
     return true;
   });
@@ -875,7 +892,7 @@ function renderFotos() {
   const grupos = {};
   filtered.forEach(f => {
     const key = `${f.serial}|${f.pozo}|${f.equipo}`;
-    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, marca: f.marca, tipo: f.tipo, fecha: f.fecha, fotos: [] };
+    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, marca: f.marca, diam: f.diam, tipo: f.tipo, fecha: f.fecha, fotos: [] };
     grupos[key].fotos.push(f);
   });
 
@@ -900,7 +917,7 @@ function renderFotos() {
       </div>`).join('');
     return `<div class="foto-group">
       <div class="foto-group-title">
-        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.marca ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.marca + '</span>' : ''}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}</span>
+        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.marca ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.marca + '</span>' : ''}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}${g.diam ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.diam + '</span>' : ''}</span>
         <span style="font-size:11px;color:var(--text3)">${g.fotos.length} foto${g.fotos.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="fotos-grid">${cards}</div>
