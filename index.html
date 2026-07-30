@@ -628,30 +628,13 @@ function goToday() {
   renderBoard();
 }
 
-function dedupeUltimaPorEquipo(lista) {
-  // Si hay varias novedades para el mismo equipo (mismo día), nos quedamos con la más reciente
-  // según created_at (o id como respaldo si created_at falta o empata).
-  const porEquipo = {};
-  for (const o of lista) {
-    const key = o.equipo;
-    const actual = porEquipo[key];
-    if (!actual) { porEquipo[key] = o; continue; }
-    const tA = actual.created_at ? new Date(actual.created_at).getTime() : 0;
-    const tO = o.created_at ? new Date(o.created_at).getTime() : 0;
-    if (tO > tA || (tO === tA && Number(o.id) > Number(actual.id))) {
-      porEquipo[key] = o;
-    }
-  }
-  return Object.values(porEquipo);
-}
-
 function renderBoard() {
   const loading = document.getElementById('loading-board');
   const board = document.getElementById('board-cards');
-  const day = dedupeUltimaPorEquipo(ops.filter(o => o.fecha === viewDate));
+  const day = ops.filter(o => o.fecha === viewDate);
   loading.style.display = 'none';
   board.style.display = 'grid';
-  document.getElementById('board-count').textContent = day.length ? `${day.length} equipo${day.length > 1 ? 's' : ''}` : '';
+  document.getElementById('board-count').textContent = day.length ? `${day.length} novedad${day.length > 1 ? 'es' : ''}` : '';
   if (!day.length) {
     board.innerHTML = `<div class="no-data">Sin registros para ${fmtDate(viewDate)}<br><span style="font-size:12px;color:var(--text3);margin-top:6px;display:block">Cargá la primera novedad del día →</span></div>`;
     return;
