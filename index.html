@@ -660,7 +660,7 @@ function renderBoard() {
 }
 
 function cardHTML(o) {
-  const metros = (o.fin_turno && o.ini_turno) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
+  const metros = (o.fin_turno !== null && o.fin_turno !== undefined && o.ini_turno !== null && o.ini_turno !== undefined) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
   const pct = (o.td_plan && o.prof_actual) ? Math.min(100, Math.round(Number(o.prof_actual) / Number(o.td_plan) * 100)) : null;
   const notaLong = o.nota && o.nota.length > 100;
   const bitStr = [o.diam, o.trepano_modelo, o.trepano_serial ? 'S/N: ' + o.trepano_serial : '', o.boquillas].filter(Boolean).join(' · ');
@@ -676,9 +676,9 @@ function cardHTML(o) {
       </div>
     </div>
     <div class="ec-depths">
-      ${o.prof_actual ? `<div class="depth-item">Prof: <strong>${Number(o.prof_actual).toLocaleString()} m</strong></div>` : ''}
+      ${(o.prof_actual !== null && o.prof_actual !== undefined) ? `<div class="depth-item">Prof: <strong>${Number(o.prof_actual).toLocaleString()} m</strong></div>` : ''}
       ${metros !== null && metros > 0 ? `<div class="depth-item">Hoy: <strong>+${metros} m</strong></div>` : ''}
-      ${o.td_plan ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
+      ${(o.td_plan !== null && o.td_plan !== undefined) ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
       ${o.bha_num ? `<div class="depth-item">BHA <strong>#${o.bha_num}</strong></div>` : ''}
     </div>
     ${pct !== null ? `<div class="depth-bar"><div class="depth-fill" style="width:${pct}%"></div></div>` : ''}
@@ -717,7 +717,7 @@ function renderHist() {
   list.style.display = 'block';
   if (!filtered.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3)">Sin resultados</div>'; return; }
   list.innerHTML = filtered.map(o => {
-    const metros = (o.fin_turno && o.ini_turno) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
+    const metros = (o.fin_turno !== null && o.fin_turno !== undefined && o.ini_turno !== null && o.ini_turno !== undefined) ? Number(o.fin_turno) - Number(o.ini_turno) : null;
     const bitStr = [o.diam, o.trepano_modelo, o.trepano_serial ? 'S/N:' + o.trepano_serial : '', o.motor_rss, o.boquillas].filter(Boolean).join(' · ');
     return `<div class="hrow">
       <div class="hrow-top">
@@ -726,9 +726,9 @@ function renderHist() {
         <span class="hrow-pozo">${o.pozo || ''}</span>
         <span class="badge ${stateBadge[o.estado] || 'b-tiempo-muerto'}" style="font-size:10px">${stateLabel[o.estado] || o.estado || '—'}</span>
         <span class="hrow-depth">
-  ${o.ini_turno ? `Inicio: ${Number(o.ini_turno).toLocaleString()} m` : ''}
-  ${o.prof_actual ? ` · Actual: ${Number(o.prof_actual).toLocaleString()} m` : ''}
-  ${o.td_plan ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
+  ${(o.ini_turno !== null && o.ini_turno !== undefined) ? `Inicio: ${Number(o.ini_turno).toLocaleString()} m` : ''}
+  ${(o.prof_actual !== null && o.prof_actual !== undefined) ? ` · Actual: ${Number(o.prof_actual).toLocaleString()} m` : ''}
+  ${(o.td_plan !== null && o.td_plan !== undefined) ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
   ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
 </span>
         <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>
@@ -794,12 +794,12 @@ async function guardar() {
 function prefillEdit(o) {
   editingId = o.id;
   goTab('cargar');
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v === null || v === undefined) ? '' : v; };
   set('f-fecha', o.fecha); document.getElementById('f-equipo').value = o.equipo || ''; set('f-pozo', o.pozo);
   document.getElementById('f-op').value = o.operadora || '';
   document.getElementById('f-estado').value = o.estado || 'perforando';
   set('f-sup', o.supervisor);
-  set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-td', o.td_plan); if(o.prof_actual && o.ini_turno){ document.getElementById('f-avance').value = Number(o.prof_actual) - Number(o.ini_turno); }
+  set('f-prof', o.prof_actual); set('f-ini', o.ini_turno); set('f-td', o.td_plan); if(o.prof_actual !== null && o.prof_actual !== undefined && o.ini_turno !== null && o.ini_turno !== undefined){ document.getElementById('f-avance').value = Number(o.prof_actual) - Number(o.ini_turno); }
   document.getElementById('f-marca').value = o.trepano_marca || '';
   set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
   document.getElementById('f-diam').value = o.diam || '';
@@ -969,7 +969,7 @@ function closeModal() {
 
 function openModal(o) {
   const estados = {perforando:'Perforando',entubando:'Entubando',aislacion:'Aislación','armando-bha':'Armando BHA',dtm:'DTM','tiempo-muerto':'Tiempo muerto','bajando-herramienta':'Bajando HTA','sacando-herramienta':'Sacando HTA',walking:'Walking','monta-equipo':'Monta Equipo','controla-pozo':'Controla Pozo','parado-por-problemas':'Problema',terminado:'Terminado/TD'};
-  const avance = (o.prof_actual && o.ini_turno) ? `+${Number(o.prof_actual) - Number(o.ini_turno)} m` : '—';
+  const avance = (o.prof_actual !== null && o.prof_actual !== undefined && o.ini_turno !== null && o.ini_turno !== undefined) ? `+${Number(o.prof_actual) - Number(o.ini_turno)} m` : '—';
   document.getElementById('modal-title').textContent = `${o.equipo} · ${o.pozo || '—'}`;
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-row"><span class="modal-label">Fecha</span><span class="modal-val">${o.fecha || '—'}</span></div>
@@ -977,10 +977,10 @@ function openModal(o) {
     <div class="modal-row"><span class="modal-label">Estado</span><span class="modal-val">${estados[o.estado] || o.estado || '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Supervisor</span><span class="modal-val">${o.supervisor || '—'}</span></div>
     <hr class="modal-sep">
-    <div class="modal-row"><span class="modal-label">Prof. actual</span><span class="modal-val">${o.prof_actual ? Number(o.prof_actual).toLocaleString() + ' m' : '—'}</span></div>
-    <div class="modal-row"><span class="modal-label">Inicio carrera</span><span class="modal-val">${o.ini_turno ? Number(o.ini_turno).toLocaleString() + ' m' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Prof. actual</span><span class="modal-val">${(o.prof_actual !== null && o.prof_actual !== undefined) ? Number(o.prof_actual).toLocaleString() + ' m' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Inicio carrera</span><span class="modal-val">${(o.ini_turno !== null && o.ini_turno !== undefined) ? Number(o.ini_turno).toLocaleString() + ' m' : '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Avance</span><span class="modal-val">${avance}</span></div>
-    <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${o.td_plan ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${(o.td_plan !== null && o.td_plan !== undefined) ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
     <hr class="modal-sep">
     <div class="modal-row"><span class="modal-label">Marca</span><span class="modal-val">${o.trepano_marca || '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Modelo</span><span class="modal-val">${o.trepano_modelo || '—'}</span></div>
