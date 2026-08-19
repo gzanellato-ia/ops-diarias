@@ -408,6 +408,9 @@
         <input type="text" id="ff-serial" placeholder="Serial..." oninput="renderFotos()" style="width:140px">
         <input type="text" id="ff-pozo" placeholder="Pozo..." oninput="renderFotos()" style="width:140px">
         <input type="text" id="ff-equipo" placeholder="Equipo..." oninput="renderFotos()" style="width:130px">
+        <select id="ff-operadora" onchange="renderFotos()" style="width:150px">
+          <option value="">Operadora...</option>
+        </select>
         <select id="ff-marca" onchange="renderFotos()" style="width:150px">
           <option value="">Marca...</option>
           <option>SLB</option>
@@ -865,6 +868,7 @@ function renderFotos() {
   const serialF = (document.getElementById('ff-serial').value || '').toLowerCase();
   const pozoF   = (document.getElementById('ff-pozo').value || '').toLowerCase();
   const equipoF = (document.getElementById('ff-equipo').value || '').toLowerCase();
+  const opF     = (document.getElementById('ff-operadora').value || '').toLowerCase();
   const marcaF  = (document.getElementById('ff-marca').value || '').toLowerCase();
   const diamF   = document.getElementById('ff-diam').value || '';
   const tipoF   = (document.getElementById('ff-tipo').value || '').toLowerCase();
@@ -877,6 +881,7 @@ function renderFotos() {
     if (serialF && !(f.serial || '').toLowerCase().includes(serialF)) return false;
     if (pozoF   && !(f.pozo   || '').toLowerCase().includes(pozoF))   return false;
     if (equipoF && !(f.equipo || '').toLowerCase().includes(equipoF)) return false;
+    if (opF     && getFotoOperadora(f).toLowerCase() !== opF)         return false;
     if (marcaF  && (f.marca   || '').toLowerCase() !== marcaF)        return false;
     if (diamF   && (f.diam    || '') !== diamF)                       return false;
     if (tipoF   && !(f.tipo   || '').toLowerCase().includes(tipoF))   return false;
@@ -892,7 +897,7 @@ function renderFotos() {
   const grupos = {};
   filtered.forEach(f => {
     const key = `${f.serial}|${f.pozo}|${f.equipo}`;
-    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, marca: f.marca, diam: f.diam, tipo: f.tipo, fecha: f.fecha, fotos: [] };
+    if (!grupos[key]) grupos[key] = { serial: f.serial, pozo: f.pozo, equipo: f.equipo, operadora: getFotoOperadora(f), marca: f.marca, diam: f.diam, tipo: f.tipo, fecha: f.fecha, fotos: [] };
     grupos[key].fotos.push(f);
   });
 
@@ -917,7 +922,7 @@ function renderFotos() {
       </div>`).join('');
     return `<div class="foto-group">
       <div class="foto-group-title">
-        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.marca ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.marca + '</span>' : ''}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}${g.diam ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.diam + '</span>' : ''}</span>
+        <span>${g.serial || '—'} · ${g.pozo || '—'} · ${g.equipo || '—'}${g.operadora ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.operadora + '</span>' : ''}${g.marca ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.marca + '</span>' : ''}${g.tipo ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.tipo + '</span>' : ''}${g.diam ? ' · <span style="color:var(--accent2,var(--accent));font-size:11px">' + g.diam + '</span>' : ''}</span>
         <span style="font-size:11px;color:var(--text3)">${g.fotos.length} foto${g.fotos.length !== 1 ? 's' : ''}</span>
       </div>
       <div class="fotos-grid">${cards}</div>
@@ -1090,6 +1095,27 @@ function fillEquipoSelect() {
     sel.appendChild(opt);
   });
   if (val) sel.value = val;
+  fillOperadoraFilter();
+}
+
+function fillOperadoraFilter() {
+  const sel = document.getElementById('ff-operadora');
+  if (!sel) return;
+  const val = sel.value;
+  const operadoras = [...new Set(equipos.map(e => e.operadora).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Operadora...</option>' + operadoras.map(op => `<option>${op}</option>`).join('');
+  if (val) sel.value = val;
+}
+
+function getOperadora(equipoNombre) {
+  const e = equipos.find(x => x.nombre === equipoNombre);
+  return e ? (e.operadora || '') : '';
+}
+
+// Prioriza la operadora guardada en la foto al momento de la carga (dato histórico real).
+// Solo para fotos viejas que no la tengan guardada, cae al valor actual del equipo (mejor esfuerzo).
+function getFotoOperadora(f) {
+  return f.operadora || getOperadora(f.equipo);
 }
 
 function renderEquipos() {
