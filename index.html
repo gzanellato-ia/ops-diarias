@@ -242,6 +242,7 @@
       <button class="tab" onclick="goTab('cargar')">+ Cargar novedad</button>
       <button class="tab" onclick="goTab('historial')">Historial</button>
       <button class="tab" onclick="goTab('admin')">⚙ Equipos</button>
+      <button class="tab" onclick="goTab('actores')">🎭 Actores</button>
       <button class="tab" onclick="goTab('fotos')">📷 Fotos</button>
       <button class="tab" onclick="goTab('docs')">📄 Docs</button>
     </div>
@@ -286,6 +287,31 @@
       <div class="form-card">
         <div class="section-title">Equipos registrados</div>
         <div id="equipos-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- ACTORES -->
+    <div id="tab-actores" class="panel">
+      <div id="actores-msg" class="msg"></div>
+      <div class="form-card" id="actores-add-card">
+        <div class="section-title">Agregar actor</div>
+        <div class="r3">
+          <div><label>Rig</label><input type="text" id="act-rig" placeholder="Ej: F24, DLS169..."></div>
+          <div><label>Operadora</label><input type="text" id="act-op" list="actores-op-list" placeholder="Ej: VISTA"></div>
+          <datalist id="actores-op-list"></datalist>
+          <div><label>CEC</label><input type="text" id="act-cec" placeholder="Nombre y apellido"></div>
+        </div>
+        <div class="r3" style="margin-top:8px">
+          <div><label>PE</label><input type="text" id="act-pe" placeholder="Nombre y apellido"></div>
+          <div><label>Ingenierx</label><input type="text" id="act-ing" placeholder="Nombre y apellido"></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-primary" onclick="agregarActor()" style="width:100%">Agregar</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="section-title">Actores registrados</div>
+        <div id="actores-list"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
       </div>
     </div>
 
@@ -567,7 +593,7 @@ function showApp() {
   document.getElementById('f-fecha').value = viewDate;
   document.getElementById('f-sup').value = currentUser;
   document.getElementById('nav-date').textContent = fmtDate(viewDate) + ' · hoy';
-  loadEquipos();
+  loadEquipos().then(loadActores);
   loadData();
   loadFotos();
   loadDocs();
@@ -968,13 +994,14 @@ function openModal(o) {
 
 function goTab(t) {
   document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', ['tablero','cargar','historial','admin','fotos','docs'][i] === t);
+    el.classList.toggle('active', ['tablero','cargar','historial','admin','actores','fotos','docs'][i] === t);
   });
   document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + t).classList.add('active');
   if (t === 'tablero') { renderBoard(); }
   if (t === 'historial') { renderHist(); }
   if (t === 'admin') { renderEquipos(); }
+  if (t === 'actores') { renderActores(); }
   if (t === 'fotos') { renderFotos(); }
   if (t === 'docs') { renderDocs(); }
 }
@@ -1151,6 +1178,104 @@ async function eliminarEquipo(id) {
     await sbFetch('PATCH', `equipos?id=eq.${id}`, { borrado: true, borrado_por: currentUser, borrado_en: new Date().toISOString() });
     await loadEquipos();
     renderEquipos();
+  } catch(e) { alert('Error al eliminar'); }
+}
+
+// ─── ACTORES ─────────────────────────────────────────────────────────────────
+let actoresData = [];
+let actorEditId = null;
+
+async function loadActores() {
+  try {
+    actoresData = await sbFetch('GET', 'actores?borrado=eq.false&order=equipo.asc') || [];
+  } catch(e) { actoresData = []; }
+  const dl = document.getElementById('actores-op-list');
+  if (dl) {
+    const ops = [...new Set(equipos.map(e => e.operadora).filter(Boolean))].sort();
+    dl.innerHTML = ops.map(op => `<option value="${op}">`).join('');
+  }
+}
+
+function renderActores() {
+  const list = document.getElementById('actores-list');
+  const addCard = document.getElementById('actores-add-card');
+  if (addCard) addCard.style.display = isAdmin() ? '' : 'none';
+  if (!actoresData.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">No hay actores cargados. Agregá el primero arriba.</div>'; return; }
+  list.innerHTML = actoresData.map(a => {
+    if (actorEditId === a.id) {
+      return `
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <input type="text" id="aedit-rig-${a.id}" value="${a.equipo || ''}" style="width:100px" placeholder="Rig">
+        <input type="text" id="aedit-op-${a.id}" value="${a.operadora || ''}" style="width:100px" placeholder="Operadora">
+        <input type="text" id="aedit-cec-${a.id}" value="${a.cec || ''}" style="width:130px" placeholder="CEC">
+        <input type="text" id="aedit-pe-${a.id}" value="${a.pe || ''}" style="width:130px" placeholder="PE">
+        <input type="text" id="aedit-ing-${a.id}" value="${a.ingenierx || ''}" style="width:130px" placeholder="Ingenierx">
+        <button class="btn btn-primary btn-sm" onclick="guardarActor('${a.id}')">💾 Guardar</button>
+        <button class="btn btn-ghost btn-sm" onclick="actorEditId=null;renderActores()">Cancelar</button>
+      </div>`;
+    }
+    return `
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:500;min-width:90px">${a.equipo}</span>
+      <span style="font-size:12px;color:var(--text2);min-width:80px">${a.operadora || '—'}</span>
+      <span style="font-size:12px;color:var(--text3)">CEC: ${a.cec || '—'}</span>
+      <span style="font-size:12px;color:var(--text3)">PE: ${a.pe || '—'}</span>
+      <span style="font-size:12px;color:var(--text3)">Ing: ${a.ingenierx || '—'}</span>
+      ${isAdmin() ? `<span style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="actorEditId='${a.id}';renderActores()" title="Editar">✎</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarActor('${a.id}')" title="Eliminar">✕</button>
+      </span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function agregarActor() {
+  if (!isAdmin()) { alert('No tenés permiso para agregar actores.'); return; }
+  const msg = document.getElementById('actores-msg');
+  const equipo = document.getElementById('act-rig').value.trim();
+  const operadora = document.getElementById('act-op').value.trim();
+  const cec = document.getElementById('act-cec').value.trim();
+  const pe = document.getElementById('act-pe').value.trim();
+  const ingenierx = document.getElementById('act-ing').value.trim();
+  if (!equipo || !operadora) { msg.className = 'msg err'; msg.textContent = 'Ingresá al menos el rig y la operadora.'; return; }
+  try {
+    await sbFetch('POST', 'actores', {
+      equipo, operadora,
+      cec: cec || null, pe: pe || null, ingenierx: ingenierx || null,
+    });
+    await loadActores();
+    renderActores();
+    ['act-rig','act-op','act-cec','act-pe','act-ing'].forEach(id => document.getElementById(id).value = '');
+    msg.className = 'msg ok'; msg.textContent = `✓ Actor de ${equipo} agregado.`;
+    setTimeout(() => { msg.className = 'msg'; }, 3000);
+  } catch(e) {
+    msg.className = 'msg err'; msg.textContent = 'Error al agregar.';
+  }
+}
+
+async function guardarActor(id) {
+  if (!isAdmin()) { alert('No tenés permiso para editar actores.'); return; }
+  try {
+    await sbFetch('PATCH', `actores?id=eq.${id}`, {
+      equipo: document.getElementById(`aedit-rig-${id}`).value.trim(),
+      operadora: document.getElementById(`aedit-op-${id}`).value.trim(),
+      cec: document.getElementById(`aedit-cec-${id}`).value.trim() || null,
+      pe: document.getElementById(`aedit-pe-${id}`).value.trim() || null,
+      ingenierx: document.getElementById(`aedit-ing-${id}`).value.trim() || null,
+    });
+    actorEditId = null;
+    await loadActores();
+    renderActores();
+  } catch(e) { alert('Error al guardar'); }
+}
+
+async function eliminarActor(id) {
+  if (!isAdmin()) { alert('No tenés permiso para eliminar actores.'); return; }
+  if (!confirm('¿Eliminar este actor?')) return;
+  try {
+    await sbFetch('PATCH', `actores?id=eq.${id}`, { borrado: true, borrado_por: currentUser, borrado_en: new Date().toISOString() });
+    await loadActores();
+    renderActores();
   } catch(e) { alert('Error al eliminar'); }
 }
 
