@@ -382,10 +382,14 @@
       <div class="form-card">
         <div class="section-title">Profundidades</div>
         <div class="r4">
-          <div><label>Prof. actual (m)</label><input type="number" id="f-prof" placeholder="5600" min="0"></div>
+          <div><label>Prof. actual (m)</label><input type="number" id="f-prof" placeholder="5600" min="0" oninput="calcAvance()"></div>
           <div><label>Prof. inicio de carrera (m)</label><input type="number" id="f-ini" placeholder="2200" min="0" oninput="calcAvance()"></div>
           <div><label>Avance de carrera (m)</label><input type="number" id="f-avance" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
-          <div><label>Prof. final de carrera (m)</label><input type="number" id="f-td" placeholder="7800" min="0"></div>
+          <div><label>Prof. final de carrera (m)</label><input type="number" id="f-td" placeholder="7800" min="0" oninput="calcAvance()"></div>
+        </div>
+        <div class="r4">
+          <div><label>Horas on-bottom (h)</label><input type="number" id="f-hob" placeholder="Solo con prof. final" min="0" step="0.1" oninput="calcAvance()" disabled style="opacity:0.6"></div>
+          <div><label>ROP on-bottom (m/h)</label><input type="number" id="f-rop" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
         </div>
       </div>
 
@@ -702,6 +706,8 @@ function cardHTML(o) {
       ${metros !== null && metros > 0 ? `<div class="depth-item">Hoy: <strong>+${metros} m</strong></div>` : ''}
       ${(o.td_plan !== null && o.td_plan !== undefined) ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
       ${o.bha_num ? `<div class="depth-item">BHA <strong>#${o.bha_num}</strong></div>` : ''}
+      ${hasHob(o) ? `<div class="depth-item">On-btm: <strong>${Number(o.horas_on_bottom)} h</strong></div>` : ''}
+      ${ropOB(o) !== null ? `<div class="depth-item">ROP OB: <strong>${ropOB(o)} m/h</strong></div>` : ''}
     </div>
     ${pct !== null ? `<div class="depth-bar"><div class="depth-fill" style="width:${pct}%"></div></div>` : ''}
     ${bitStr ? `<div class="ec-bit">${bitStr}${o.motor_rss ? ' · ' + o.motor_rss : ''}</div>` : ''}
@@ -752,6 +758,8 @@ function renderHist() {
   ${(o.prof_actual !== null && o.prof_actual !== undefined) ? ` · Actual: ${Number(o.prof_actual).toLocaleString()} m` : ''}
   ${(o.td_plan !== null && o.td_plan !== undefined) ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
   ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
+  ${hasHob(o) ? ` · On-btm: ${Number(o.horas_on_bottom)} h` : ''}
+  ${ropOB(o) !== null ? ` · ROP OB: ${ropOB(o)} m/h` : ''}
 </span>
         ${isAdmin() ? `<button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>` : ''}
       </div>
@@ -770,7 +778,26 @@ function calcAvance() {
   } else {
     el.value = '';
   }
+  // Horas on-bottom: solo se habilitan cuando hay prof. final de carrera
+  const tieneTd = document.getElementById('f-td').value !== '';
+  const hobEl = document.getElementById('f-hob');
+  hobEl.disabled = !tieneTd;
+  hobEl.style.opacity = tieneTd ? '1' : '0.6';
+  const rop = tieneTd ? ropOB({ prof_actual: document.getElementById('f-prof').value, ini_turno: document.getElementById('f-ini').value, horas_on_bottom: hobEl.value }) : null;
+  document.getElementById('f-rop').value = rop !== null ? rop : '';
 }
+
+// ROP on-bottom = avance de carrera / horas on-bottom (m/h), 1 decimal.
+// Devuelve null si falta algún dato o si avance u horas no son > 0.
+function ropOB(o) {
+  const vacio = v => v === null || v === undefined || v === '';
+  if (vacio(o.prof_actual) || vacio(o.ini_turno) || vacio(o.horas_on_bottom)) return null;
+  const avance = Number(o.prof_actual) - Number(o.ini_turno);
+  const h = Number(o.horas_on_bottom);
+  if (!(avance > 0) || !(h > 0)) return null;
+  return Math.round(avance / h * 10) / 10;
+}
+function hasHob(o) { return o.horas_on_bottom !== null && o.horas_on_bottom !== undefined && o.horas_on_bottom !== ''; }
   
 // ─── FORM ────────────────────────────────────────────────────────────────────
 async function guardar() {
@@ -789,6 +816,8 @@ async function guardar() {
     ini_turno: document.getElementById('f-ini').value || null,
     fin_turno: (document.getElementById('f-prof').value && document.getElementById('f-ini').value) ? String(Number(document.getElementById('f-prof').value) - Number(document.getElementById('f-ini').value)) : null,
     td_plan: document.getElementById('f-td').value || null,
+    // Solo se guarda si hay prof. final de carrera
+    horas_on_bottom: (document.getElementById('f-td').value && document.getElementById('f-hob').value !== '') ? document.getElementById('f-hob').value : null,
     trepano_marca: document.getElementById('f-marca').value || null,
     trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
     trepano_serial: document.getElementById('f-serial').value.trim() || null,
@@ -826,11 +855,14 @@ function prefillEdit(o) {
   set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
   document.getElementById('f-diam').value = o.diam || '';
   set('f-bha', o.bha_num); set('f-motor', o.motor_rss); set('f-boq', o.boquillas); set('f-nota', o.nota);
+  set('f-hob', o.horas_on_bottom);
+  calcAvance();
 }
 
 function limpiar() {
   editingId = null;
-  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
+  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-hob','f-rop','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
+  calcAvance();
   document.getElementById('f-equipo').value = '';
   document.getElementById('f-op').value = '';
   document.getElementById('f-estado').value = 'perforando';
@@ -850,9 +882,10 @@ async function del(id) {
 
 function exportCSV() {
   if (!ops.length) { alert('Sin datos'); return; }
-  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
-  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
-  const csv = [headers.join(','), ...ops.map(o => cols.map(k => `"${(o[k] || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
+  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','horas_on_bottom','rop_on_bottom','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
+  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Horas on-bottom (h)','ROP on-bottom (m/h)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
+  const filas = ops.map(o => ({ ...o, rop_on_bottom: ropOB(o) }));
+  const csv = [headers.join(','), ...filas.map(o => cols.map(k => `"${(o[k] ?? '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `operaciones_${today()}.csv`;
@@ -1000,6 +1033,8 @@ function openModal(o) {
     <div class="modal-row"><span class="modal-label">Inicio carrera</span><span class="modal-val">${(o.ini_turno !== null && o.ini_turno !== undefined) ? Number(o.ini_turno).toLocaleString() + ' m' : '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Avance</span><span class="modal-val">${avance}</span></div>
     <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${(o.td_plan !== null && o.td_plan !== undefined) ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
+    ${hasHob(o) ? `<div class="modal-row"><span class="modal-label">Horas on-bottom</span><span class="modal-val">${Number(o.horas_on_bottom)} h</span></div>
+    <div class="modal-row"><span class="modal-label">ROP on-bottom</span><span class="modal-val">${ropOB(o) !== null ? ropOB(o) + ' m/h' : '—'}</span></div>` : ''}
     <hr class="modal-sep">
     <div class="modal-row"><span class="modal-label">Marca</span><span class="modal-val">${o.trepano_marca || '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Modelo</span><span class="modal-val">${o.trepano_modelo || '—'}</span></div>
