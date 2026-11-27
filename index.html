@@ -1500,12 +1500,19 @@ async function setVista(id, v) {
   catch(e) { alert('Error al guardar la vista de la foto.'); console.error(e); }
 }
 
+const normPozo = p => normTxt(p).replace(/[^A-Z0-9]/g, '');
+// Otros pozos donde ese serial tiene fotos (solo para avisar, no se usan)
+function otrosPozosConFotos(c) {
+  if (!c.sOk) return [];
+  const s = normTxt(c.serial);
+  return [...new Set(fotosData.filter(f => normTxt(f.serial) === s && normPozo(f.pozo) !== normPozo(c.pozo)).map(f => f.pozo))];
+}
+
 function fotosDeCarrera(c) {
   if (!c.sOk) return [];
   const s = normTxt(c.serial);
-  const match = fotosData.filter(f => normTxt(f.serial) === s);
-  const mismoPozo = match.filter(f => normTxt(f.pozo) === normTxt(c.pozo));
-  return ordenarFotos(mismoPozo.length ? mismoPozo : match);
+  // Solo fotos del mismo serial Y del mismo pozo: un trépano re-corrido en otro pozo tiene otras fotos
+  return ordenarFotos(fotosData.filter(f => normTxt(f.serial) === s && normPozo(f.pozo) === normPozo(c.pozo)));
 }
 
 function serialClave(c) { return c.sOk ? c.serial : `SIN SERIAL · BHA ${c.bha ?? '?'} · ${c.modelo || '?'}`; }
@@ -1626,7 +1633,7 @@ function renderEditorRep() {
       <hr class="sep">
       <div class="section-title">Fotos (${fotos.length}) — asigná la vista (el reporte ordena: planta, lateral, aleta 1, 2, 3…), tildá las que van y recortá las lejanas</div>
       ${!c.sOk ? '<div style="font-size:12px;color:var(--amber)">Esta carrera no tiene serial válido: no se vinculan fotos para evitar mezclar carreras.</div>' : ''}
-      ${c.sOk && !fotos.length ? '<div style="font-size:12px;color:var(--text3)">No hay fotos con este serial.</div>' : ''}
+      ${c.sOk && !fotos.length ? `<div style="font-size:12px;color:var(--text3)">No hay fotos de ${esc(c.serial)} cargadas en ${esc(c.pozo)}.${otrosPozosConFotos(c).length ? ` Este serial tiene fotos en otro${otrosPozosConFotos(c).length > 1 ? 's' : ''} pozo${otrosPozosConFotos(c).length > 1 ? 's' : ''} (${otrosPozosConFotos(c).map(esc).join(', ')}), que no se usan para esta carrera.` : ''}</div>` : ''}
       <div class="fotos-grid">
         ${fotos.map((f, i) => `
           <div class="foto-card" style="padding:0">
