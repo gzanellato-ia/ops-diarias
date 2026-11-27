@@ -1870,6 +1870,22 @@ function armarFotos(doc, cont, items, gap) {
   });
 }
 
+// Nombre del PDF: Reporte_<pozo>_<diámetro decimal>_<modelo>_<serial>  (ej: Reporte_ETE1952_12.25_P507X_5374509)
+// El navegador usa el <title> como nombre sugerido al "Guardar como PDF".
+function diamDecimal(d) {
+  if (!d) return '';
+  let t = String(d).replace(/["”″']/g, '').trim();
+  const frac = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
+  const m = /^(\d+)\s*([¼½¾⅛⅜⅝⅞])$/.exec(t);
+  if (m) return String(Number(m[1]) + frac[m[2]]);
+  return t.replace(',', '.');
+}
+function nombreArchivo(c) {
+  const limpio = x => String(x || '').replace(/[^A-Za-z0-9.\-]/g, '');
+  const partes = ['Reporte', limpio(c.pozo), limpio(diamDecimal(c.diam)), limpio(c.modelo), c.sOk ? limpio(c.serial) : 'SinSerial'];
+  return partes.filter(Boolean).join('_');
+}
+
 // ─── GENERAR REPORTE (A4 vertical, imprimir / guardar PDF) ───────────────────
 async function generarReporte() {
   const c = repSel; if (!c) return;
@@ -1885,7 +1901,7 @@ async function generarReporte() {
   const notasMostrar = notas.slice(-8);
   const v = x => (x === null || x === undefined || x === '') ? '–' : esc(x);
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-<title>Reporte_${esc(c.pozo)}_${esc(c.sOk ? c.serial : 'BHA' + (c.bha ?? ''))}</title>
+<title>${esc(nombreArchivo(c))}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#0B1A6B;--blue:#0014DC;--cyan:#00B6F0;--ink:#1B1A5E;--text:#2B2E45;--muted:#6B6F80;--card:#F1F2F6;--line:#DADCE6}
