@@ -1646,17 +1646,23 @@ function renderEditorRep() {
       </div>
       ${repFotosSel.size > 8 ? '<div style="font-size:12px;color:var(--amber);margin-top:8px">Con más de 8 fotos se achican mucho en la hoja: conviene elegir hasta 8.</div>' : ''}
     </div>`;
+  rpAjustarNotas();
 }
 
 function notasHTML(c, rep) {
   const ed = rep.notas_editadas || {};
   const regs = c.regs.filter(r => r.nota);
   if (!regs.length) return '<div style="font-size:12px;color:var(--text3)">Esta carrera no tiene novedades cargadas.</div>';
-  return regs.map(r => `<div style="display:grid;grid-template-columns:70px 80px 1fr;gap:10px;align-items:start;margin-bottom:6px">
+  return regs.map(r => {
+    const excl = ed[r.id] === '';
+    const val = ed[r.id] !== undefined && !excl ? ed[r.id] : r.nota;
+    return `<div class="rp-nota-row" style="display:grid;grid-template-columns:70px 80px 1fr 34px;gap:10px;align-items:start;margin-bottom:6px;${excl ? 'opacity:.45' : ''}">
       <span style="font-size:12px;color:var(--text3);padding-top:8px">${fmtCorta(r.fecha)}</span>
       <span style="font-size:12px;font-family:var(--mono);padding-top:8px;text-align:right">${!vacio(r.prof_actual) ? fmtNum(r.prof_actual) + ' m' : ''}</span>
-      <textarea class="rp-nota" data-id="${r.id}" data-orig="${esc(r.nota)}" spellcheck="true" lang="es" style="min-height:38px">${esc(ed[r.id] !== undefined ? ed[r.id] : r.nota)}</textarea>
-    </div>`).join('') + `<div class="form-actions">
+      <textarea class="rp-nota" data-id="${r.id}" data-orig="${esc(r.nota)}" ${excl ? `data-excl="1" data-prev="${esc(val)}" disabled placeholder="Excluida del reporte"` : ''} spellcheck="true" lang="es" style="min-height:38px;resize:none;overflow:hidden" oninput="rpAutoGrow(this)">${excl ? '' : esc(val)}</textarea>
+      <button class="btn btn-sm ${excl ? '' : 'btn-danger'}" style="margin-top:4px" title="${excl ? 'Volver a incluir' : 'Excluir del reporte'}" onclick="rpExcluirNota(this)">${excl ? '↺' : '✕'}</button>
+    </div>`;
+  }).join('') + `<div class="form-actions">
       <button class="btn" onclick="revisarOrtografia()">🔤 Revisar ortografía</button>
       <button class="btn" onclick="guardarNotas()">💾 Guardar novedades</button>
       <button class="btn btn-ghost" onclick="restaurarNotas()">↺ Volver a los originales</button>
@@ -1691,7 +1697,7 @@ async function revisarOrtografia() {
       matches.forEach(m => { texto = texto.slice(0, m.offset) + m.replacements[0].value + texto.slice(m.offset + m.length); cambios++; });
       // Primera letra en mayúscula
       texto = texto.charAt(0).toUpperCase() + texto.slice(1);
-      if (texto !== ta.value) { ta.value = texto; ta.style.borderColor = 'var(--amber)'; }
+      if (texto !== ta.value) { ta.value = texto; ta.style.borderColor = 'var(--amber)'; rpAutoGrow(ta); }
     }
     msg.className = 'msg ok';
     msg.textContent = cambios ? `✓ ${cambios} corrección${cambios !== 1 ? 'es' : ''} aplicada${cambios !== 1 ? 's' : ''} (marcadas en naranja). Revisalas y guardá.` : '✓ No se encontraron errores.';
@@ -1702,8 +1708,24 @@ async function revisarOrtografia() {
   }
 }
 
+function rpAutoGrow(ta) { ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; }
+function rpExcluirNota(btn) {
+  const row = btn.closest('.rp-nota-row'), ta = row.querySelector('.rp-nota');
+  if (ta.dataset.excl === '1') {
+    ta.value = ta.dataset.prev || ta.dataset.orig; ta.disabled = false; ta.placeholder = ''; delete ta.dataset.excl;
+    row.style.opacity = ''; btn.textContent = '✕'; btn.classList.add('btn-danger'); btn.title = 'Excluir del reporte';
+  } else {
+    ta.dataset.prev = ta.value; ta.value = ''; ta.disabled = true; ta.placeholder = 'Excluida del reporte'; ta.dataset.excl = '1';
+    row.style.opacity = '.45'; btn.textContent = '↺'; btn.classList.remove('btn-danger'); btn.title = 'Volver a incluir';
+  }
+  rpAutoGrow(ta);
+}
 function restaurarNotas() {
-  document.querySelectorAll('.rp-nota').forEach(ta => { ta.value = ta.dataset.orig; ta.style.borderColor = ''; });
+  document.querySelectorAll('.rp-nota-row').forEach(row => {
+    const ta = row.querySelector('.rp-nota'), btn = row.querySelector('button');
+    if (ta.dataset.excl === '1') rpExcluirNota(btn);
+    ta.value = ta.dataset.orig; ta.style.borderColor = ''; rpAutoGrow(ta);
+  });
 }
 
 async function guardarNotas() {
@@ -1734,6 +1756,7 @@ async function upsertReporte(c, datos) {
 }
 
 function rpToggleFoto(id, on) { on ? repFotosSel.add(id) : repFotosSel.delete(id); renderEditorRep(); }
+function rpAjustarNotas() { document.querySelectorAll('.rp-nota').forEach(rpAutoGrow); }
 function hasCrop(f) { return !vacio(f.crop_x) && !vacio(f.crop_y) && !vacio(f.crop_w) && !vacio(f.crop_h) && Number(f.crop_w) > 0 && Number(f.crop_h) > 0; }
 
 async function guardarIADC() {
@@ -1800,37 +1823,50 @@ async function guardarCrop(quitar) {
   } catch(e) { alert('Error al guardar el recorte.'); console.error(e); }
 }
 
-// Devuelve dataURL de la foto ajustada a la proporción del recuadro (aspect = ancho/alto).
-// Con recorte: la caja se agranda alrededor de su centro hasta esa proporción (el trépano entra
-// completo y el resto se completa con la misma foto, sin bandas). Sin recorte: encuadre centrado.
-// Si falla CORS devuelve la URL original.
-function fotoParaReporte(f, aspect) {
+// Carga la foto para conocer su tamaño real (no requiere CORS)
+function cargarFoto(f) {
   return new Promise(resolve => {
     const im = new Image();
-    im.crossOrigin = 'anonymous';
-    im.onload = () => {
-      try {
-        const W = im.naturalWidth, H = im.naturalHeight;
-        let cx, cy, cw, ch;
-        if (hasCrop(f)) { cw = f.crop_w * W; ch = f.crop_h * H; cx = f.crop_x * W + cw / 2; cy = f.crop_y * H + ch / 2; }
-        else { cw = W; ch = H; cx = W / 2; cy = H / 2; }
-        if (hasCrop(f)) {
-          if (cw / ch < aspect) cw = ch * aspect; else ch = cw / aspect;   // agrandar el lado corto
-        } else {
-          if (cw / ch > aspect) cw = ch * aspect; else ch = cw / aspect;   // encuadre tipo "cover"
-        }
-        if (cw > W) { cw = W; ch = cw / aspect; }
-        if (ch > H) { ch = H; cw = ch * aspect; }
-        const sx = Math.min(Math.max(cx - cw / 2, 0), W - cw), sy = Math.min(Math.max(cy - ch / 2, 0), H - ch);
-        const escala = Math.min(1, 1400 / cw);
-        const cv = document.createElement('canvas');
-        cv.width = Math.round(cw * escala); cv.height = Math.round(ch * escala);
-        cv.getContext('2d').drawImage(im, sx, sy, cw, ch, 0, 0, cv.width, cv.height);
-        resolve(cv.toDataURL('image/jpeg', 0.9));
-      } catch(e) { console.warn('No se pudo procesar la foto (CORS)', e); resolve(f.url); }
-    };
-    im.onerror = () => resolve(f.url);
-    im.src = f.url + (f.url.includes('?') ? '&' : '?') + 'cors=1';
+    im.onload = () => resolve({ f, W: im.naturalWidth, H: im.naturalHeight });
+    im.onerror = () => resolve(null);
+    im.src = f.url;
+  });
+}
+
+// Arma las fotos en filas: misma altura por fila, ancho según la proporción de cada recorte.
+// Prueba de 1 a N filas y elige la que deja las fotos más grandes dentro del espacio disponible.
+function armarFotos(doc, cont, items, gap) {
+  const Wa = cont.clientWidth, Ha = cont.clientHeight;
+  const asp = items.map(it => it.asp);
+  let mejor = null;
+  for (let r = 1; r <= items.length; r++) {
+    // repartir en r filas consecutivas con suma de proporciones pareja
+    const total = asp.reduce((x, y) => x + y, 0), filas = []; let fila = [], acum = 0, restantes = r;
+    asp.forEach((a, i) => {
+      const objetivo = (total - asp.slice(0, i).reduce((x, y) => x + y, 0) + acum) / restantes;
+      if (fila.length && restantes > 1 && Math.abs(acum + a - objetivo) > Math.abs(acum - objetivo)) { filas.push(fila); fila = []; acum = 0; restantes--; }
+      fila.push(i); acum += a;
+    });
+    filas.push(fila);
+    const alturas = filas.map(fl => (Wa - gap * (fl.length - 1)) / fl.reduce((x, i) => x + asp[i], 0));
+    const altoTotal = alturas.reduce((x, y) => x + y, 0) + gap * (filas.length - 1);
+    const escala = Math.min(1, (Ha - gap * (filas.length - 1)) / (altoTotal - gap * (filas.length - 1)));
+    const area = filas.reduce((acc, fl, k) => acc + fl.reduce((x, i) => x + asp[i], 0) * Math.pow(alturas[k] * escala, 2), 0);
+    if (!mejor || area > mejor.area) mejor = { filas, alturas, esc: escala, area };
+  }
+  cont.innerHTML = '';
+  mejor.filas.forEach((fl, k) => {
+    const h = mejor.alturas[k] * mejor.esc;
+    const row = doc.createElement('div'); row.className = 'frow'; row.style.height = h + 'px';
+    fl.forEach(i => {
+      const it = items[i];
+      const cel = doc.createElement('div'); cel.className = 'ph'; cel.style.width = (h * it.asp) + 'px'; cel.style.height = h + 'px';
+      const img = doc.createElement('img'); img.src = it.f.url;
+      // recorte por CSS: la imagen se escala y se desplaza para que solo se vea la caja marcada
+      Object.assign(img.style, { width: (100 / it.cw) + '%', height: (100 / it.ch) + '%', left: (-it.cx / it.cw * 100) + '%', top: (-it.cy / it.ch * 100) + '%' });
+      cel.appendChild(img); row.appendChild(cel);
+    });
+    cont.appendChild(row);
   });
 }
 
@@ -1847,7 +1883,6 @@ async function generarReporte() {
   const ed = rep.notas_editadas || {};
   const notas = c.regs.map(r => ({ ...r, nota: ed[r.id] !== undefined ? ed[r.id] : r.nota })).filter(r => r.nota && r.nota.trim());
   const notasMostrar = notas.slice(-8);
-  const nCols = fotos.length <= 2 ? 2 : (fotos.length <= 6 ? 3 : 4);
   const v = x => (x === null || x === undefined || x === '') ? '–' : esc(x);
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <title>Reporte_${esc(c.pozo)}_${esc(c.sOk ? c.serial : 'BHA' + (c.bha ?? ''))}</title>
@@ -1898,12 +1933,12 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
 .timeline .r:last-child{border-bottom:none}
 .timeline .d{color:var(--muted)}
 .timeline .p{font-weight:600;color:var(--ink);text-align:right}
-.timeline .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mas{font-size:7pt;color:var(--muted);margin-top:1mm}
 .photos{flex:1;min-height:0;display:flex;flex-direction:column}
-.grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(${nCols},1fr);grid-auto-rows:1fr;gap:2mm}
+.grid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2mm;overflow:hidden}
+.frow{display:flex;gap:2mm;justify-content:center}
 .ph{position:relative;overflow:hidden;border-radius:2mm;background:var(--card)}
-.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ph img{position:absolute;max-width:none}
 .sinfotos{flex:1;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:2mm;color:var(--muted);font-size:9pt}
 .foot{display:flex;justify-content:space-between;font-size:6.8pt;color:var(--muted);border-top:1px solid var(--line);padding-top:2mm}
 </style></head><body>
@@ -1949,19 +1984,24 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
     </div>${notas.length > notasMostrar.length ? `<div class="mas">+${notas.length - notasMostrar.length} novedades anteriores en OPS Diarias</div>` : ''}</div>
   </div>
   <div class="photos"><h2>Fotos del trépano</h2>
-    ${fotos.length ? `<div class="grid">${fotos.map((f, i) => `<div class="ph"><img data-i="${i}"></div>`).join('')}</div>` : '<div class="sinfotos">Sin fotos seleccionadas</div>'}
+    ${fotos.length ? '<div class="grid"></div>' : '<div class="sinfotos">Sin fotos seleccionadas</div>'}
   </div>
   <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>ROP on-bottom = avance / horas on-bottom</span></div>
 </div></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
-  // Con la hoja ya armada se mide el recuadro real y se ajusta cada foto a esa proporción
-  const celda = w.document.querySelector('.ph');
-  if (!celda) return;
+  // Con la hoja ya armada se mide el espacio libre y se acomodan las fotos completas
+  const cont = w.document.querySelector('.grid');
+  if (!cont) return;
+  try { await w.document.fonts.ready; } catch(e) {}
   await new Promise(r => setTimeout(r, 150));
-  const rc = celda.getBoundingClientRect();
-  const aspect = rc.width / rc.height || 4 / 3;
-  const srcs = await Promise.all(fotos.map(f => fotoParaReporte(f, aspect)));
-  w.document.querySelectorAll('.ph img').forEach(el => { el.src = srcs[Number(el.dataset.i)]; });
+  const cargadas = (await Promise.all(fotos.map(cargarFoto))).filter(Boolean);
+  const items = cargadas.map(({ f, W, H }) => {
+    const c = hasCrop(f) ? { cx: Number(f.crop_x), cy: Number(f.crop_y), cw: Number(f.crop_w), ch: Number(f.crop_h) } : { cx: 0, cy: 0, cw: 1, ch: 1 };
+    return { f, ...c, asp: (c.cw * W) / (c.ch * H) };
+  });
+  if (!items.length) { cont.outerHTML = '<div class="sinfotos">No se pudieron cargar las fotos</div>'; return; }
+  const gap = parseFloat(w.getComputedStyle(cont).rowGap) || 7.5;
+  armarFotos(w.document, cont, items, gap);
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
