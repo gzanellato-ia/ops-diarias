@@ -1893,11 +1893,11 @@ async function generarReporte() {
 body{background:#C9CCD6;font-family:"SLB Sans","Inter","Helvetica Neue",Arial,sans-serif;color:var(--text);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .bar{position:sticky;top:0;background:#0B1A6B;color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:5}
 .bar button{background:#00B6F0;border:none;color:#0B1A6B;font-weight:600;padding:7px 16px;border-radius:6px;cursor:pointer;font-family:inherit}
-.page{width:210mm;height:297mm;margin:10mm auto;background:#fff;padding:11mm 11mm 8mm;display:flex;flex-direction:column;gap:4.2mm;box-shadow:0 2px 14px rgba(0,0,0,.18);overflow:hidden}
+.page{width:210mm;height:297mm;margin:10mm auto;background:#fff;padding:10mm 11mm 7mm;display:flex;flex-direction:column;gap:2.5mm;box-shadow:0 2px 14px rgba(0,0,0,.18);overflow:hidden}
 @page{size:A4 portrait;margin:0}
 @media print{body{background:#fff}.bar{display:none}.page{margin:0;box-shadow:none}}
 .eyebrow{font-size:7.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);font-weight:600}
-h2{font-size:10.5pt;font-weight:600;color:var(--ink);margin-bottom:2mm}
+h2{font-size:10.5pt;font-weight:600;color:var(--ink);margin-bottom:1.5mm}
 .head{display:flex;justify-content:space-between;align-items:center;gap:6mm}
 .head h1{font-size:22pt;font-weight:300;color:var(--blue);line-height:1.05;letter-spacing:-.01em;margin-top:2mm}
 .logo{height:13mm;width:auto;flex:none}
@@ -1909,16 +1909,16 @@ h2{font-size:10.5pt;font-weight:600;color:var(--ink);margin-bottom:2mm}
 .chip .v{font-size:12pt;font-weight:700;color:var(--ink);margin-top:.6mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chip.dark .v{color:#fff}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:2.5mm}
-.kpi{border:1px solid var(--line);border-radius:2.5mm;padding:3mm}
+.kpi{border:1px solid var(--line);border-radius:2.5mm;padding:2.5mm 3mm}
 .kpi.hi{background:var(--blue);border-color:var(--blue)}
 .kpi .n{font-size:19pt;font-weight:700;color:var(--blue);line-height:1}
 .kpi .u{font-size:9pt;font-weight:500;margin-left:1mm}
 .kpi .l{font-size:8pt;color:var(--muted);margin-top:1.4mm}
 .kpi.hi .n,.kpi.hi .l{color:#fff}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:3mm}
-.card{background:var(--card);border-radius:2.5mm;padding:3mm 3.5mm}
+.card{background:var(--card);border-radius:2.5mm;padding:2.5mm 3.5mm}
 table.kv{width:100%;border-collapse:collapse;font-size:8.5pt}
-table.kv td{padding:1mm 0;border-bottom:1px solid var(--line)}
+table.kv td{padding:.8mm 0;border-bottom:1px solid var(--line)}
 table.kv tr:last-child td{border-bottom:none}
 table.kv td:first-child{color:var(--muted);width:42%}
 table.kv td:last-child{font-weight:600;color:var(--ink)}
@@ -1926,10 +1926,10 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
 .iadc div{text-align:center}
 .iadc .h{font-size:6.5pt;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--navy);border-radius:1.5mm 1.5mm 0 0;padding:1mm 0;font-weight:600}
 .iadc .c{font-size:6pt;color:var(--muted);padding:.6mm 0 0}
-.iadc .v{font-size:13pt;font-weight:700;color:var(--blue);border:1px solid var(--line);border-top:none;border-radius:0 0 1.5mm 1.5mm;height:9mm;display:flex;align-items:center;justify-content:center;background:#fff}
+.iadc .v{font-size:13pt;font-weight:700;color:var(--blue);border:1px solid var(--line);border-top:none;border-radius:0 0 1.5mm 1.5mm;height:8mm;display:flex;align-items:center;justify-content:center;background:#fff}
 .bha{font-size:7.3pt;line-height:1.45}
 .timeline{font-size:8pt}
-.timeline .r{display:grid;grid-template-columns:14mm 15mm 1fr;gap:2mm;padding:1mm 0;border-bottom:1px solid var(--line)}
+.timeline .r{display:grid;grid-template-columns:14mm 15mm 1fr;gap:3mm;padding:.8mm 0;border-bottom:1px solid var(--line)}
 .timeline .r:last-child{border-bottom:none}
 .timeline .d{color:var(--muted)}
 .timeline .p{font-weight:600;color:var(--ink);text-align:right}
@@ -1972,18 +1972,16 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
       <tr><td>Profundidad entrada</td><td>${c.ini !== null ? fmtNum(c.ini) + ' m' : '–'}</td></tr>
       <tr><td>${c.enCurso ? 'Profundidad actual' : 'Profundidad salida'}</td><td>${c.out !== null ? fmtNum(c.out) + ' m' : '–'}${c.enCurso ? ' (en curso)' : ''}</td></tr>
       <tr><td>BHA #</td><td>${v(c.bhas.join(' / '))}</td></tr>
-    </table></div>
+    </table>
+    <h2 style="margin-top:2.5mm">BHA · Motor / RSS</h2><div class="bha">${v(c.motor)}</div></div>
   </div>
   <div><h2>Desgaste IADC</h2><div class="iadc">
     ${IADC_CAMPOS.map(f => `<div><div class="h">${f.h}</div><div class="v">${v(rep[f.k])}</div><div class="c">${f.c}</div></div>`).join('')}
   </div></div>
-  <div class="two">
-    <div class="card"><h2>BHA · Motor / RSS</h2><div class="bha">${v(c.motor)}</div></div>
-    <div class="card"><h2>Novedades</h2><div class="timeline">
+  <div class="card"><h2>Novedades</h2><div class="timeline">
       ${notasMostrar.length ? notasMostrar.map(r => `<div class="r"><span class="d">${fmtCorta(r.fecha)}</span><span class="p">${!vacio(r.prof_actual) ? fmtNum(r.prof_actual) + ' m' : ''}</span><span class="t">${esc(r.nota)}</span></div>`).join('') : '<div style="color:var(--muted)">Sin novedades cargadas</div>'}
     </div>${notas.length > notasMostrar.length ? `<div class="mas">+${notas.length - notasMostrar.length} novedades anteriores en OPS Diarias</div>` : ''}</div>
-  </div>
-  <div class="photos"><h2>Fotos del trépano</h2>
+  <div class="photos">
     ${fotos.length ? '<div class="grid"></div>' : '<div class="sinfotos">Sin fotos seleccionadas</div>'}
   </div>
   <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>ROP on-bottom = avance / horas on-bottom</span></div>
