@@ -408,8 +408,10 @@
         </div>
         <div class="r4">
           <div><label>Horas on-bottom (h)</label><input type="number" id="f-hob" placeholder="Solo con prof. final" min="0" step="0.1" oninput="calcAvance()" disabled style="opacity:0.6"></div>
-          <div><label>ROP on-bottom (m/h)</label><input type="number" id="f-rop" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
+          <div><label>Horas de perforación (h)</label><input type="number" id="f-hperf" placeholder="Si no hay on-bottom" min="0" step="0.1" oninput="calcAvance()" disabled style="opacity:0.6"></div>
+          <div><label id="f-rop-lbl">ROP (m/h)</label><input type="number" id="f-rop" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
         </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">Al cerrar la carrera cargá horas on-bottom o, si no se consiguen, horas de perforación (incluye conexiones, paradas cortas y circulaciones). Con on-bottom se calcula ROP on-bottom; si no, ROP general.</div>
       </div>
 
       <div class="form-card">
@@ -752,7 +754,8 @@ function cardHTML(o) {
       ${(o.td_plan !== null && o.td_plan !== undefined) ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
       ${o.bha_num ? `<div class="depth-item">BHA <strong>#${o.bha_num}</strong></div>` : ''}
       ${hasHob(o) ? `<div class="depth-item">On-btm: <strong>${Number(o.horas_on_bottom)} h</strong></div>` : ''}
-      ${ropOB(o) !== null ? `<div class="depth-item">ROP OB: <strong>${ropOB(o)} m/h</strong></div>` : ''}
+      ${!hasHob(o) && hasHperf(o) ? `<div class="depth-item">Perf: <strong>${Number(o.horas_perforacion)} h</strong></div>` : ''}
+      ${ropInfo(o) ? `<div class="depth-item">${ropInfo(o).etiqueta}: <strong>${ropInfo(o).valor} m/h</strong></div>` : ''}
     </div>
     ${pct !== null ? `<div class="depth-bar"><div class="depth-fill" style="width:${pct}%"></div></div>` : ''}
     ${bitStr ? `<div class="ec-bit">${bitStr}${o.motor_rss ? ' · ' + o.motor_rss : ''}</div>` : ''}
@@ -804,7 +807,8 @@ function renderHist() {
   ${(o.td_plan !== null && o.td_plan !== undefined) ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
   ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
   ${hasHob(o) ? ` · On-btm: ${Number(o.horas_on_bottom)} h` : ''}
-  ${ropOB(o) !== null ? ` · ROP OB: ${ropOB(o)} m/h` : ''}
+  ${!hasHob(o) && hasHperf(o) ? ` · Perf: ${Number(o.horas_perforacion)} h` : ''}
+  ${ropInfo(o) ? ` · ${ropInfo(o).etiqueta}: ${ropInfo(o).valor} m/h` : ''}
 </span>
         ${isAdmin() ? `<button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>` : ''}
       </div>
@@ -828,8 +832,12 @@ function calcAvance() {
   const hobEl = document.getElementById('f-hob');
   hobEl.disabled = !tieneTd;
   hobEl.style.opacity = tieneTd ? '1' : '0.6';
-  const rop = tieneTd ? ropOB({ prof_actual: document.getElementById('f-prof').value, ini_turno: document.getElementById('f-ini').value, horas_on_bottom: hobEl.value }) : null;
-  document.getElementById('f-rop').value = rop !== null ? rop : '';
+  const hperfEl = document.getElementById('f-hperf');
+  hperfEl.disabled = !tieneTd;
+  hperfEl.style.opacity = tieneTd ? '1' : '0.6';
+  const r = tieneTd ? ropInfo({ prof_actual: document.getElementById('f-prof').value, ini_turno: document.getElementById('f-ini').value, horas_on_bottom: hobEl.value, horas_perforacion: hperfEl.value }) : null;
+  document.getElementById('f-rop').value = r ? r.valor : '';
+  document.getElementById('f-rop-lbl').textContent = r ? (r.tipo === 'ob' ? 'ROP on-bottom (m/h)' : 'ROP general (m/h)') : 'ROP (m/h)';
 }
 
 // ROP on-bottom = avance de carrera / horas on-bottom (m/h), 1 decimal.
@@ -843,6 +851,20 @@ function ropOB(o) {
   return Math.round(avance / h * 10) / 10;
 }
 function hasHob(o) { return o.horas_on_bottom !== null && o.horas_on_bottom !== undefined && o.horas_on_bottom !== ''; }
+function hasHperf(o) { return o.horas_perforacion !== null && o.horas_perforacion !== undefined && o.horas_perforacion !== ''; }
+// ROP general = avance de carrera / horas de perforación (m/h), 1 decimal.
+function ropPerf(o) {
+  if (!hasHperf(o) || o.prof_actual === null || o.prof_actual === undefined || o.prof_actual === '' || o.ini_turno === null || o.ini_turno === undefined || o.ini_turno === '') return null;
+  const avance = Number(o.prof_actual) - Number(o.ini_turno), h = Number(o.horas_perforacion);
+  if (!(avance > 0) || !(h > 0)) return null;
+  return Math.round(avance / h * 10) / 10;
+}
+// Prioridad: ROP on-bottom; si no hay horas on-bottom, ROP general con horas de perforación.
+function ropInfo(o) {
+  const ob = ropOB(o); if (ob !== null) return { valor: ob, tipo: 'ob', etiqueta: 'ROP OB' };
+  const pf = ropPerf(o); if (pf !== null) return { valor: pf, tipo: 'perf', etiqueta: 'ROP gral' };
+  return null;
+}
   
 // ─── FORM ────────────────────────────────────────────────────────────────────
 async function guardar() {
@@ -863,6 +885,7 @@ async function guardar() {
     td_plan: document.getElementById('f-td').value || null,
     // Solo se guarda si hay prof. final de carrera
     horas_on_bottom: (document.getElementById('f-td').value && document.getElementById('f-hob').value !== '') ? document.getElementById('f-hob').value : null,
+    horas_perforacion: (document.getElementById('f-td').value && document.getElementById('f-hperf').value !== '') ? document.getElementById('f-hperf').value : null,
     trepano_marca: document.getElementById('f-marca').value || null,
     trepano_modelo: document.getElementById('f-modelo').value.trim() || null,
     trepano_serial: document.getElementById('f-serial').value.trim() || null,
@@ -900,13 +923,13 @@ function prefillEdit(o) {
   set('f-modelo', o.trepano_modelo); set('f-serial', o.trepano_serial);
   document.getElementById('f-diam').value = o.diam || '';
   set('f-bha', o.bha_num); set('f-motor', o.motor_rss); set('f-boq', o.boquillas); set('f-nota', o.nota);
-  set('f-hob', o.horas_on_bottom);
+  set('f-hob', o.horas_on_bottom); set('f-hperf', o.horas_perforacion);
   calcAvance();
 }
 
 function limpiar() {
   editingId = null;
-  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-hob','f-rop','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
+  ['f-pozo','f-sup','f-prof','f-ini','f-avance','f-td','f-hob','f-hperf','f-rop','f-modelo','f-serial','f-bha','f-motor','f-boq','f-nota'].forEach(id => document.getElementById(id).value = '');
   calcAvance();
   document.getElementById('f-equipo').value = '';
   document.getElementById('f-op').value = '';
@@ -927,9 +950,9 @@ async function del(id) {
 
 function exportCSV() {
   if (!ops.length) { alert('Sin datos'); return; }
-  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','horas_on_bottom','rop_on_bottom','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
-  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Horas on-bottom (h)','ROP on-bottom (m/h)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
-  const filas = ops.map(o => ({ ...o, rop_on_bottom: ropOB(o) }));
+  const cols = ['fecha','equipo','pozo','operadora','estado','supervisor','prof_actual','ini_turno','fin_turno','td_plan','horas_on_bottom','rop_on_bottom','horas_perforacion','rop_general','trepano_marca','trepano_modelo','trepano_serial','diam','bha_num','motor_rss','boquillas','nota'];
+  const headers = ['Fecha','Equipo','Pozo','Operadora','Estado','Supervisor','Prof. actual (m)','Prof. inicio carrera (m)','Avance carrera (m)','Prof. final carrera (m)','Horas on-bottom (h)','ROP on-bottom (m/h)','Horas perforación (h)','ROP general (m/h)','Marca trépano','Modelo trépano','Serial trépano','Diámetro','BHA #','Motor/RSS','Boquillas','Novedad'];
+  const filas = ops.map(o => ({ ...o, rop_on_bottom: ropOB(o), rop_general: ropPerf(o) }));
   const csv = [headers.join(','), ...filas.map(o => cols.map(k => `"${(o[k] ?? '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
@@ -1079,7 +1102,9 @@ function openModal(o) {
     <div class="modal-row"><span class="modal-label">Avance</span><span class="modal-val">${avance}</span></div>
     <div class="modal-row"><span class="modal-label">Final carrera</span><span class="modal-val">${(o.td_plan !== null && o.td_plan !== undefined) ? Number(o.td_plan).toLocaleString() + ' m' : '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Horas on-bottom</span><span class="modal-val">${hasHob(o) ? Number(o.horas_on_bottom) + ' h' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">Horas perforación</span><span class="modal-val">${hasHperf(o) ? Number(o.horas_perforacion) + ' h' : '—'}</span></div>
     <div class="modal-row"><span class="modal-label">ROP on-bottom</span><span class="modal-val">${ropOB(o) !== null ? ropOB(o) + ' m/h' : '—'}</span></div>
+    <div class="modal-row"><span class="modal-label">ROP general</span><span class="modal-val">${ropPerf(o) !== null ? ropPerf(o) + ' m/h' : '—'}</span></div>
     <hr class="modal-sep">
     <div class="modal-row"><span class="modal-label">Marca</span><span class="modal-val">${o.trepano_marca || '—'}</span></div>
     <div class="modal-row"><span class="modal-label">Modelo</span><span class="modal-val">${o.trepano_modelo || '—'}</span></div>
@@ -1460,7 +1485,12 @@ function construirCarreras() {
     const out = !enCurso ? Number(tdFinal) : (profs.length ? Math.max(...profs) : null);
     const avance = (!vacio(ini) && out !== null) ? out - Number(ini) : null;
     const hob = ultimo(regs, 'horas_on_bottom');
-    const rop = (avance > 0 && !vacio(hob) && Number(hob) > 0) ? Math.round(avance / Number(hob) * 10) / 10 : null;
+    const hperf = ultimo(regs, 'horas_perforacion');
+    // Prioridad: on-bottom; si no hay, horas de perforación (ROP general)
+    let horas = null, ropTipo = null;
+    if (!vacio(hob) && Number(hob) > 0) { horas = Number(hob); ropTipo = 'ob'; }
+    else if (!vacio(hperf) && Number(hperf) > 0) { horas = Number(hperf); ropTipo = 'perf'; }
+    const rop = (avance > 0 && horas) ? Math.round(avance / horas * 10) / 10 : null;
     const f0 = regs[0].fecha, f1 = last.fecha;
     const dias = Math.round((new Date(f1 + 'T12:00:00') - new Date(f0 + 'T12:00:00')) / 86400000) + 1;
     const serial = ultimo(regs, 'trepano_serial');
@@ -1470,7 +1500,7 @@ function construirCarreras() {
       pozo: last.pozo, equipo: ultimo(regs, 'equipo'), operadora: ultimo(regs, 'operadora') || getOperadora(last.equipo),
       marca: ultimo(regs, 'trepano_marca'), modelo: ultimo(regs, 'trepano_modelo'), serial: g.sOk ? serial : null, serialRaw: serial,
       diam: ultimo(regs, 'diam'), bha: ultimo(regs, 'bha_num'), bhas, motor: ultimo(regs, 'motor_rss'), boquillas: ultimo(regs, 'boquillas'),
-      ini: vacio(ini) ? null : Number(ini), out, enCurso, avance, hob: vacio(hob) ? null : Number(hob), rop, f0, f1, dias,
+      ini: vacio(ini) ? null : Number(ini), out, enCurso, avance, hob: vacio(hob) ? null : Number(hob), horas, ropTipo: rop !== null ? ropTipo : null, rop, f0, f1, dias,
     };
   });
   // Marcar BHA repetido: mismo pozo + mismo BHA en más de una carrera
@@ -1574,7 +1604,7 @@ function renderCarrerasRep() {
           <div class="depth-item">BHA <strong>#${esc(c.bhas.join('/') || '?')}</strong>${c.bhaRepetido ? ' <span style="color:var(--amber)" title="El BHA se repite en otra carrera del pozo o cambia dentro de esta">⚠</span>' : ''}</div>
           ${c.ini !== null && c.out !== null ? `<div class="depth-item"><strong>${fmtNum(c.ini)} → ${fmtNum(c.out)} m</strong></div>` : ''}
           ${c.avance !== null ? `<div class="depth-item">Av: <strong>${fmtNum(c.avance)} m</strong></div>` : ''}
-          ${c.rop !== null ? `<div class="depth-item">ROP OB: <strong>${c.rop} m/h</strong></div>` : ''}
+          ${c.rop !== null ? `<div class="depth-item">${c.ropTipo === 'ob' ? 'ROP OB' : 'ROP gral'}: <strong>${c.rop} m/h</strong></div>` : ''}
         </div>
         <div class="ec-foot"><span class="ec-sup">${fmtCorta(c.f0)} → ${fmtCorta(c.f1)} · ${c.dias} d</span>
           <span class="ec-sup">📷 ${nF}${rep ? ' · IADC ✓' : ''}</span></div>
@@ -1614,7 +1644,7 @@ function renderEditorRep() {
           <div class="section-title" style="margin-bottom:4px">Carrera seleccionada</div>
           <div style="font-family:var(--mono);font-size:15px;font-weight:600">${esc(c.pozo)} · ${esc([c.diam, c.modelo].filter(Boolean).join(' '))} · ${c.sOk ? esc(c.serial) : 'sin serial'}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">${esc(c.equipo || '—')} · ${esc(c.operadora || '—')} · ${fmtRango(c.f0, c.f1)} · ${c.regs.length} registro${c.regs.length !== 1 ? 's' : ''}
-            ${c.hob === null ? ' · <span style="color:var(--amber)">sin horas on-bottom</span>' : ''}
+            ${c.horas === null ? ' · <span style="color:var(--amber)">sin horas on-bottom ni de perforación</span>' : (c.ropTipo === 'perf' ? ' · <span style="color:var(--amber)">sin on-bottom: se usa ROP general</span>' : '')}
             ${c.enCurso ? ' · <span style="color:var(--amber)">carrera en curso (sin prof. final)</span>' : ''}</div>
         </div>
         <button class="btn btn-primary" onclick="generarReporte()">📑 Generar reporte</button>
@@ -1979,8 +2009,8 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
   </div>
   <div class="kpis">
     <div class="kpi"><div class="n">${c.avance !== null ? fmtNum(c.avance) : '–'}<span class="u">m</span></div><div class="l">Avance${c.ini !== null && c.out !== null ? ` · ${fmtNum(c.ini)} → ${fmtNum(c.out)} m` : ''}</div></div>
-    <div class="kpi"><div class="n">${c.hob !== null ? fmtNum(c.hob, 1) : '–'}<span class="u">h</span></div><div class="l">Horas on-bottom${c.hob === null ? ' (sin dato)' : ''}</div></div>
-    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l">ROP on-bottom</div></div>
+    <div class="kpi"><div class="n">${c.horas !== null ? fmtNum(c.horas, 1) : '–'}<span class="u">h</span></div><div class="l">${c.ropTipo === 'perf' ? 'Horas de perforación' : 'Horas on-bottom'}${c.horas === null ? ' (sin dato)' : ''}</div></div>
+    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l">${c.ropTipo === 'perf' ? 'ROP general' : 'ROP on-bottom'}</div></div>
     <div class="kpi"><div class="n">${c.dias}<span class="u">día${c.dias !== 1 ? 's' : ''}</span></div><div class="l">En el pozo (1.er a último registro)</div></div>
   </div>
   <div class="two">
@@ -2007,7 +2037,7 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
   <div class="photos">
     ${fotos.length ? '<div class="grid"></div>' : '<div class="sinfotos">Sin fotos seleccionadas</div>'}
   </div>
-  <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>ROP on-bottom = avance / horas on-bottom</span></div>
+  <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>${c.ropTipo === 'perf' ? 'ROP general = avance / horas de perforación (incluye conexiones y paradas)' : 'ROP on-bottom = avance / horas on-bottom'}</span></div>
 </div></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
   // Con la hoja ya armada se mide el espacio libre y se acomodan las fotos completas
