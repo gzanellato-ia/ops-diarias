@@ -1973,6 +1973,8 @@ h2{font-size:10.5pt;font-weight:600;color:var(--ink);margin-bottom:1.5mm}
 .kpi .u{font-size:9pt;font-weight:500;margin-left:1mm}
 .kpi .l{font-size:8pt;color:var(--muted);margin-top:1.4mm}
 .kpi.hi .n,.kpi.hi .l{color:#fff}
+.kpi .l .lp{color:var(--blue);font-weight:600}
+.kpi.hi .l .lp{color:#fff}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:3mm}
 .card{background:var(--card);border-radius:2.5mm;padding:2.5mm 3.5mm}
 table.kv{width:100%;border-collapse:collapse;font-size:8.5pt}
@@ -2014,8 +2016,8 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
   </div>
   <div class="kpis">
     <div class="kpi"><div class="n">${c.avance !== null ? fmtNum(c.avance) : '–'}<span class="u">m</span></div><div class="l">Avance${c.ini !== null && c.out !== null ? ` · ${fmtNum(c.ini)} → ${fmtNum(c.out)} m` : ''}</div></div>
-    <div class="kpi"><div class="n">${c.horas !== null ? fmtNum(c.horas, 1) : '–'}<span class="u">h</span></div><div class="l">${c.ropTipo === 'perf' ? 'Horas de perforación' : 'Horas on-bottom'}${c.horas === null ? ' (sin dato)' : ''}${c.ropTipo === 'ob' && c.hperfN !== null ? ` · perforación ${fmtNum(c.hperfN, 1)} h` : ''}</div></div>
-    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l">${c.ropTipo === 'perf' ? 'ROP general' : 'ROP on-bottom'}${c.ropTipo === 'ob' && c.ropGral !== null ? ` · general ${fmtNum(c.ropGral, 1)} m/h` : ''}</div></div>
+    <div class="kpi"><div class="n">${c.horas !== null ? fmtNum(c.horas, 1) : '–'}<span class="u">h</span></div><div class="l"><span class="lp">${c.ropTipo === 'perf' ? 'Horas de perforación' : 'Horas on-bottom'}${c.horas === null ? ' (sin dato)' : ''}</span>${c.ropTipo === 'ob' && c.hperfN !== null ? `<br>Horas de perforación ${fmtNum(c.hperfN, 1)} h` : ''}</div></div>
+    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l"><span class="lp">${c.ropTipo === 'perf' ? 'ROP general' : 'ROP on-bottom'}</span>${c.ropTipo === 'ob' && c.ropGral !== null ? `<br>ROP general ${fmtNum(c.ropGral, 1)} m/h` : ''}</div></div>
     <div class="kpi"><div class="n">${c.dias}<span class="u">día${c.dias !== 1 ? 's' : ''}</span></div><div class="l">En el pozo (1.er a último registro)</div></div>
   </div>
   <div class="two">
