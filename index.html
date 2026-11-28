@@ -411,7 +411,7 @@
           <div><label>Horas de perforación (h)</label><input type="number" id="f-hperf" placeholder="Si no hay on-bottom" min="0" step="0.1" oninput="calcAvance()" disabled style="opacity:0.6"></div>
           <div><label id="f-rop-lbl">ROP (m/h)</label><input type="number" id="f-rop" placeholder="auto" readonly style="opacity:0.6;cursor:not-allowed"></div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px">Al cerrar la carrera cargá horas on-bottom o, si no se consiguen, horas de perforación (incluye conexiones, paradas cortas y circulaciones). Con on-bottom se calcula ROP on-bottom; si no, ROP general.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">Al cerrar la carrera cargá las horas que tengas: on-bottom y/o de perforación (incluye conexiones, paradas cortas y circulaciones). Si están las dos se guardan ambas; la ROP principal es la on-bottom.</div>
       </div>
 
       <div class="form-card">
@@ -754,8 +754,9 @@ function cardHTML(o) {
       ${(o.td_plan !== null && o.td_plan !== undefined) ? `<div class="depth-item">TD: <strong>${Number(o.td_plan).toLocaleString()} m</strong>${pct !== null ? ` <span style="color:var(--text3)">${pct}%</span>` : ''}</div>` : ''}
       ${o.bha_num ? `<div class="depth-item">BHA <strong>#${o.bha_num}</strong></div>` : ''}
       ${hasHob(o) ? `<div class="depth-item">On-btm: <strong>${Number(o.horas_on_bottom)} h</strong></div>` : ''}
-      ${!hasHob(o) && hasHperf(o) ? `<div class="depth-item">Perf: <strong>${Number(o.horas_perforacion)} h</strong></div>` : ''}
-      ${ropInfo(o) ? `<div class="depth-item">${ropInfo(o).etiqueta}: <strong>${ropInfo(o).valor} m/h</strong></div>` : ''}
+      ${ropOB(o) !== null ? `<div class="depth-item">ROP OB: <strong>${ropOB(o)} m/h</strong></div>` : ''}
+      ${hasHperf(o) ? `<div class="depth-item">Perf: <strong>${Number(o.horas_perforacion)} h</strong></div>` : ''}
+      ${ropPerf(o) !== null ? `<div class="depth-item">ROP gral: <strong>${ropPerf(o)} m/h</strong></div>` : ''}
     </div>
     ${pct !== null ? `<div class="depth-bar"><div class="depth-fill" style="width:${pct}%"></div></div>` : ''}
     ${bitStr ? `<div class="ec-bit">${bitStr}${o.motor_rss ? ' · ' + o.motor_rss : ''}</div>` : ''}
@@ -807,8 +808,9 @@ function renderHist() {
   ${(o.td_plan !== null && o.td_plan !== undefined) ? ` · Final: ${Number(o.td_plan).toLocaleString()} m` : ''}
   ${metros && metros > 0 ? ` · Avance: +${metros} m` : ''}
   ${hasHob(o) ? ` · On-btm: ${Number(o.horas_on_bottom)} h` : ''}
-  ${!hasHob(o) && hasHperf(o) ? ` · Perf: ${Number(o.horas_perforacion)} h` : ''}
-  ${ropInfo(o) ? ` · ${ropInfo(o).etiqueta}: ${ropInfo(o).valor} m/h` : ''}
+  ${ropOB(o) !== null ? ` · ROP OB: ${ropOB(o)} m/h` : ''}
+  ${hasHperf(o) ? ` · Perf: ${Number(o.horas_perforacion)} h` : ''}
+  ${ropPerf(o) !== null ? ` · ROP gral: ${ropPerf(o)} m/h` : ''}
 </span>
         ${isAdmin() ? `<button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="del('${o.id}');renderHist()">✕</button>` : ''}
       </div>
@@ -1491,6 +1493,8 @@ function construirCarreras() {
     if (!vacio(hob) && Number(hob) > 0) { horas = Number(hob); ropTipo = 'ob'; }
     else if (!vacio(hperf) && Number(hperf) > 0) { horas = Number(hperf); ropTipo = 'perf'; }
     const rop = (avance > 0 && horas) ? Math.round(avance / horas * 10) / 10 : null;
+    const hperfN = (!vacio(hperf) && Number(hperf) > 0) ? Number(hperf) : null;
+    const ropGral = (avance > 0 && hperfN) ? Math.round(avance / hperfN * 10) / 10 : null;
     const f0 = regs[0].fecha, f1 = last.fecha;
     const dias = Math.round((new Date(f1 + 'T12:00:00') - new Date(f0 + 'T12:00:00')) / 86400000) + 1;
     const serial = ultimo(regs, 'trepano_serial');
@@ -1500,7 +1504,7 @@ function construirCarreras() {
       pozo: last.pozo, equipo: ultimo(regs, 'equipo'), operadora: ultimo(regs, 'operadora') || getOperadora(last.equipo),
       marca: ultimo(regs, 'trepano_marca'), modelo: ultimo(regs, 'trepano_modelo'), serial: g.sOk ? serial : null, serialRaw: serial,
       diam: ultimo(regs, 'diam'), bha: ultimo(regs, 'bha_num'), bhas, motor: ultimo(regs, 'motor_rss'), boquillas: ultimo(regs, 'boquillas'),
-      ini: vacio(ini) ? null : Number(ini), out, enCurso, avance, hob: vacio(hob) ? null : Number(hob), horas, ropTipo: rop !== null ? ropTipo : null, rop, f0, f1, dias,
+      ini: vacio(ini) ? null : Number(ini), out, enCurso, avance, hob: vacio(hob) ? null : Number(hob), horas, hperfN, ropGral, ropTipo: rop !== null ? ropTipo : null, rop, f0, f1, dias,
     };
   });
   // Marcar BHA repetido: mismo pozo + mismo BHA en más de una carrera
@@ -1605,6 +1609,7 @@ function renderCarrerasRep() {
           ${c.ini !== null && c.out !== null ? `<div class="depth-item"><strong>${fmtNum(c.ini)} → ${fmtNum(c.out)} m</strong></div>` : ''}
           ${c.avance !== null ? `<div class="depth-item">Av: <strong>${fmtNum(c.avance)} m</strong></div>` : ''}
           ${c.rop !== null ? `<div class="depth-item">${c.ropTipo === 'ob' ? 'ROP OB' : 'ROP gral'}: <strong>${c.rop} m/h</strong></div>` : ''}
+          ${c.ropTipo === 'ob' && c.ropGral !== null ? `<div class="depth-item">ROP gral: <strong>${c.ropGral} m/h</strong></div>` : ''}
         </div>
         <div class="ec-foot"><span class="ec-sup">${fmtCorta(c.f0)} → ${fmtCorta(c.f1)} · ${c.dias} d</span>
           <span class="ec-sup">📷 ${nF}${rep ? ' · IADC ✓' : ''}</span></div>
@@ -2009,8 +2014,8 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
   </div>
   <div class="kpis">
     <div class="kpi"><div class="n">${c.avance !== null ? fmtNum(c.avance) : '–'}<span class="u">m</span></div><div class="l">Avance${c.ini !== null && c.out !== null ? ` · ${fmtNum(c.ini)} → ${fmtNum(c.out)} m` : ''}</div></div>
-    <div class="kpi"><div class="n">${c.horas !== null ? fmtNum(c.horas, 1) : '–'}<span class="u">h</span></div><div class="l">${c.ropTipo === 'perf' ? 'Horas de perforación' : 'Horas on-bottom'}${c.horas === null ? ' (sin dato)' : ''}</div></div>
-    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l">${c.ropTipo === 'perf' ? 'ROP general' : 'ROP on-bottom'}</div></div>
+    <div class="kpi"><div class="n">${c.horas !== null ? fmtNum(c.horas, 1) : '–'}<span class="u">h</span></div><div class="l">${c.ropTipo === 'perf' ? 'Horas de perforación' : 'Horas on-bottom'}${c.horas === null ? ' (sin dato)' : ''}${c.ropTipo === 'ob' && c.hperfN !== null ? ` · perforación ${fmtNum(c.hperfN, 1)} h` : ''}</div></div>
+    <div class="kpi hi"><div class="n">${c.rop !== null ? fmtNum(c.rop, 1) : '–'}<span class="u">m/h</span></div><div class="l">${c.ropTipo === 'perf' ? 'ROP general' : 'ROP on-bottom'}${c.ropTipo === 'ob' && c.ropGral !== null ? ` · general ${fmtNum(c.ropGral, 1)} m/h` : ''}</div></div>
     <div class="kpi"><div class="n">${c.dias}<span class="u">día${c.dias !== 1 ? 's' : ''}</span></div><div class="l">En el pozo (1.er a último registro)</div></div>
   </div>
   <div class="two">
@@ -2037,7 +2042,7 @@ table.kv td:last-child{font-weight:600;color:var(--ink)}
   <div class="photos">
     ${fotos.length ? '<div class="grid"></div>' : '<div class="sinfotos">Sin fotos seleccionadas</div>'}
   </div>
-  <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>${c.ropTipo === 'perf' ? 'ROP general = avance / horas de perforación (incluye conexiones y paradas)' : 'ROP on-bottom = avance / horas on-bottom'}</span></div>
+  <div class="foot"><span>Generado por OPS Diarias · ${fmtRango(today(), today())}</span><span>${c.ropTipo === 'perf' ? 'ROP general = avance / horas de perforación (incluye conexiones y paradas)' : 'ROP on-bottom = avance / horas on-bottom' + (c.ropGral !== null ? ' · ROP general = avance / horas de perforación' : '')}</span></div>
 </div></body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
   // Con la hoja ya armada se mide el espacio libre y se acomodan las fotos completas
